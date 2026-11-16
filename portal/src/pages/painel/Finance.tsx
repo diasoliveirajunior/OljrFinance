@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
 import {
   Bell, ChevronRight, CreditCard, Landmark, LayoutDashboard, LineChart,
-  List, Loader2, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
+  List, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth"
 import { useTheme } from "@/hooks/useTheme"

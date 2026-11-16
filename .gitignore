@@ -1,0 +1,18 @@
+node_modules/
+.env
+.env.*
+firebase-key*
+bq-key*
+*-key.json
+*-key.json.json
+scratch/
+.kombai/
+*.log
+
+# Backup do historico git antigo (contem chave vazada ja rotacionada).
+# NAO commitar — manter local pra consulta se precisar.
+.git.OLD_WITH_LEAK_BACKUP/
+
+# Build artifacts
+portal/dist/
+dist/

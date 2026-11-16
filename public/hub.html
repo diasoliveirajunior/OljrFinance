@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hub — Portal OlJr</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #091016;
+            background-image: radial-gradient(circle at center, #162436 0%, #05080c 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Loading ── */
+        #loading {
+            position: fixed; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: #091016;
+            z-index: 999;
+            gap: 16px;
+        }
+        .loader-ring {
+            width: 40px; height: 40px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-top-color: rgba(255,255,255,0.7);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Top Bar ── */
+        .top-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 22px 48px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            background: rgba(9,16,22,0.85);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .logo {
+            font-weight: 300;
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            padding: 8px 14px;
+            border: 1px solid rgba(255,255,255,0.35);
+            text-transform: uppercase;
+        }
+
+        .top-bar-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.25);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #c0d4e8;
+            text-transform: uppercase;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .user-name {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: #ffffff;
+            letter-spacing: 0.5px;
+        }
+
+        .user-email {
+            font-size: 0.7rem;
+            color: #8fa0b5;
+            letter-spacing: 0.3px;
+        }
+
+        .admin-chip {
+            background: rgba(255,215,0,0.12);
+            border: 1px solid rgba(255,215,0,0.4);
+            color: #ffd700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            display: none;
+        }
+        .admin-chip.show { display: inline-block; }
+
+        .btn-logout {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #8fa0b5;
+            padding: 8px 20px;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.75rem;
+            font-weight: 400;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 2px;
+        }
+        .btn-logout:hover {
+            border-color: rgba(255,255,255,0.6);
+            color: #ffffff;
+        }
+
+        /* ── Main Content ── */
+        .main-content {
+            flex: 1;
+            padding: 60px 48px;
+            max-width: 1100px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .welcome-section {
+            margin-bottom: 50px;
+        }
+
+        .welcome-label {
+            font-size: 0.72rem;
+            font-weight: 300;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            color: #8fa0b5;
+            margin-bottom: 10px;
+        }
+
+        .welcome-title {
+            font-size: clamp(1.6rem, 3vw, 2.4rem);
+            font-weight: 300;
+            letter-spacing: 2px;
+            color: #ffffff;
+        }
+
+        .welcome-title span { font-weight: 700; }
+
+        .welcome-sub {
+            margin-top: 10px;
+            font-size: 0.82rem;
+            font-weight: 300;
+            color: #8fa0b5;
+            letter-spacing: 1px;
+        }
+
+        /* ── Divider ── */
+        .section-divider {
+            height: 1px;
+            background: linear-gradient(to right, rgba(255,255,255,0.12), transparent);
+            margin-bottom: 40px;
+        }
+
+        .section-label {
+            font-size: 0.68rem;
+            font-weight: 300;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: #8fa0b5;
+            margin-bottom: 24px;
+        }
+
+        /* ── Cards Grid ── */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 24px;
+        }
+
+        .module-card {
+            background: rgba(22,36,54,0.55);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 36px 32px;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            transition: all 0.35s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .module-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%);
+            pointer-events: none;
+            border-radius: inherit;
+        }
+
+        .module-card:hover {
+            border-color: rgba(255,255,255,0.3);
+            background: rgba(22,36,54,0.85);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .module-card.admin-only {
+            display: none;
+            border-color: rgba(255,215,0,0.15);
+        }
+        .module-card.admin-only.show {
+            display: flex;
+        }
+        .module-card.admin-only:hover {
+            border-color: rgba(255,215,0,0.4);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(255,215,0,0.06);
+        }
+
+        .card-icon {
+            width: 52px; height: 52px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #c0d4e8;
+        }
+        .module-card.admin-only .card-icon {
+            background: rgba(255,215,0,0.08);
+            border-color: rgba(255,215,0,0.2);
+            color: #ffd700;
+        }
+
+        .card-body { display: flex; flex-direction: column; gap: 8px; }
+
+        .card-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: #ffffff;
+        }
+
+        .card-desc {
+            font-size: 0.78rem;
+            font-weight: 300;
+            color: #8fa0b5;
+            line-height: 1.6;
+            letter-spacing: 0.3px;
+        }
+
+        .card-arrow {
+            margin-top: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: rgba(255,255,255,0.35);
+            transition: color 0.3s ease, gap 0.3s ease;
+        }
+        .module-card:hover .card-arrow { color: rgba(255,255,255,0.7); gap: 12px; }
+        .module-card.admin-only .card-arrow { color: rgba(255,215,0,0.3); }
+        .module-card.admin-only:hover .card-arrow { color: rgba(255,215,0,0.8); }
+
+        /* Coming-soon card */
+        .module-card.soon {
+            opacity: 0.45;
+            cursor: default;
+            pointer-events: none;
+        }
+        .soon-badge {
+            position: absolute;
+            top: 16px; right: 16px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #8fa0b5;
+            font-size: 0.62rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+            .top-bar { padding: 18px 24px; }
+            .main-content { padding: 36px 24px; }
+            .user-details { display: none; }
+            .cards-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="loader-ring"></div>
+        <span style="font-size:0.75rem;letter-spacing:3px;text-transform:uppercase;color:#8fa0b5;">Carregando...</span>
+    </div>
+
+    <!-- Top Bar -->
+    <header class="top-bar">
+        <div class="logo">OlJr.</div>
+        <div class="top-bar-right">
+            <span class="admin-chip" id="admin-chip">⚡ Admin</span>
+            <div class="user-info">
+                <div class="user-avatar" id="user-avatar">—</div>
+                <div class="user-details">
+                    <span class="user-name" id="user-name">—</span>
+                    <span class="user-email" id="user-email">—</span>
+                </div>
+            </div>
+            <button class="btn-logout" id="btn-logout">Sair</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content" id="hub-content" style="display:none;">
+
+        <div class="welcome-section">
+            <div class="welcome-label">Portal OlJr</div>
+            <h1 class="welcome-title">Bem-vindo, <span id="welcome-name">—</span></h1>
+            <p class="welcome-sub">Selecione um módulo para começar.</p>
+        </div>
+
+        <div class="section-divider"></div>
+        <div class="section-label">Módulos Disponíveis</div>
+
+        <div class="cards-grid">
+
+            <!-- Card 1: FIPLAN -->
+            <a class="module-card" href="/live_index.html">
+                <div class="card-icon">
+                    <!-- Bar chart icon -->
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6"  y1="20" x2="6"  y2="14"></line>
+                        <line x1="2"  y1="20" x2="22" y2="20"></line>
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">Módulo FIPLAN</div>
+                    <div class="card-desc">Planejamento e acompanhamento financeiro. Consulta de dados orçamentários e execução fiscal.</div>
+                </div>
+                <div class="card-arrow">
+                    Acessar
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Card 2: Gestão de Acessos (Admin Only) -->
+            <a class="module-card admin-only" id="admin-card" href="/admin.html">
+                <div class="card-icon">
+                    <!-- Users + shield icon -->
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">Gestão de Acessos</div>
+                    <div class="card-desc">Aprovar novos cadastros, revogar acessos e gerenciar todos os usuários do sistema.</div>
+                </div>
+                <div class="card-arrow">
+                    Gerenciar
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                        <polyline points="12 5 19 12 12 19"></polyline>
+                    </svg>
+                </div>
+            </a>
+
+            <!-- Card 3: Em Breve -->
+            <div class="module-card soon">
+                <span class="soon-badge">Em Breve</span>
+                <div class="card-icon">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title">Novo Módulo</div>
+                    <div class="card-desc">Próximo sistema em desenvolvimento. Em breve disponível no portal.</div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAze2Xj1H7QhZCz2z_ktR5b1qspbY9NPiI",
+            authDomain: "oliveirajunior-eca87.firebaseapp.com",
+            projectId: "oliveirajunior-eca87",
+            storageBucket: "oliveirajunior-eca87.firebasestorage.app",
+            messagingSenderId: "308166224942",
+            appId: "1:308166224942:web:46ec1026ea8c7d0d79c3bf"
+        };
+
+        const ADMIN_EMAIL = 'diasoliveirajunior@gmail.com';
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        onAuthStateChanged(auth, (user) => {
+            if (!user) {
+                window.location.href = '/index.html';
+                return;
+            }
+
+            // Populate user info
+            const email = user.email || user.uid;
+            const displayName = user.displayName || email.split('@')[0];
+            const initials = displayName.substring(0, 2).toUpperCase();
+
+            document.getElementById('user-avatar').textContent  = initials;
+            document.getElementById('user-name').textContent    = displayName;
+            document.getElementById('user-email').textContent   = email;
+            document.getElementById('welcome-name').textContent = displayName.split(' ')[0];
+
+            const isAdmin = (user.uid === ADMIN_EMAIL);
+            if (isAdmin) {
+                document.getElementById('admin-chip').classList.add('show');
+                document.getElementById('admin-card').classList.add('show');
+            }
+
+            document.getElementById('loading').style.display    = 'none';
+            document.getElementById('hub-content').style.display = 'block';
+        });
+
+        document.getElementById('btn-logout').addEventListener('click', async () => {
+            await signOut(auth);
+            window.location.href = '/index.html';
+        });
+    </script>
+</body>
+</html>

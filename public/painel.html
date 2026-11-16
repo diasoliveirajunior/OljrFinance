@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Painel FIPLAN - Consolidado (OlJr)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root { --bg:#0f1117; --panel:#171a21; --panel2:#1f242d; --line:#2a313c; --fg:#e6e9ef; --muted:#9aa4b2; --accent:#4a90e2; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:'Segoe UI',Roboto,Arial,sans-serif; background:var(--bg); color:var(--fg); }
+  header { background:var(--panel); border-bottom:1px solid var(--line); padding:14px 22px; display:flex; align-items:center; justify-content:space-between; }
+  header h1 { font-size:18px; margin:0; color:var(--accent); }
+  #who { font-size:13px; color:var(--muted); }
+  .wrap { padding:18px 22px; max-width:1500px; margin:0 auto; }
+  .gate { text-align:center; padding:80px 20px; color:var(--muted); }
+  .gate a { color:var(--accent); }
+  .kpis { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:16px; }
+  .kpi { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px 16px; min-width:150px; }
+  .kpi .n { font-size:22px; font-weight:700; }
+  .kpi .l { font-size:12px; color:var(--muted); }
+  .totbox { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+  .totgrp { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 16px; flex:1; min-width:330px; }
+  .tothdr { font-size:13px; color:var(--fg); margin-bottom:10px; font-weight:600; }
+  .totcards { display:flex; gap:10px; flex-wrap:wrap; }
+  .totcard { background:var(--panel2); border:1px solid var(--line); border-radius:10px; padding:10px 14px; flex:1; min-width:135px; }
+  .totlbl { font-size:11px; color:var(--muted); margin-bottom:4px; }
+  .totval { font-size:19px; font-weight:700; }
+  .filters { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:14px; }
+  .filters label { font-size:12px; color:var(--muted); display:block; margin-bottom:3px; }
+  select, input[type=text] { background:var(--panel2); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font-size:13px; }
+  button { background:var(--accent); color:#fff; border:none; border-radius:8px; padding:8px 12px; font-size:13px; cursor:pointer; }
+  button.sec { background:var(--panel2); border:1px solid var(--line); }
+  button.ok { background:var(--ok); } button.warn { background:var(--warn); color:#111; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th,td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); position:sticky; top:0; background:var(--panel); }
+  .tablebox { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:auto; max-height:62vh; }
+  .tag { font-size:11px; padding:2px 7px; border-radius:20px; white-space:nowrap; }
+  .m_HISTORICO_CGC,.m_EMP_CONTRATO_CGC,.m_PROCESSO_PGTO { background:#14532d; color:#bbf7d0; }
+  .m_HISTORICO_FORA_CGC,.m_EMP_CONTRATO_FORA_CGC,.m_HISTORICO_FORA_CGC_PROPAGADO { background:#7c2d12; color:#fed7aa; }
+  .m_PROCESSO_CGC,.m_CREDOR_CGC,.m_HISTORICO_CGC_PROPAGADO,.m_PROCESSO_CGC_PROPAGADO,.m_CREDOR_CGC_PROPAGADO { background:#14532d; color:#bbf7d0; }
+  .m_CREDOR_CANDIDATO { background:#1e3a8a; color:#bfdbfe; }
+  .m_NAO_RESOLVIDO { background:#3f3f46; color:#d4d4d8; }
+  .val { font-size:11px; color:var(--ok); }
+  .muted { color:var(--muted); }
+  .row-actions button { padding:4px 8px; font-size:11px; margin-right:4px; }
+  /* modal */
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; }
+  .modal.show { display:flex; }
+  .modal .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:20px; width:420px; max-width:92vw; }
+  .modal h3 { margin:0 0 12px; }
+  .modal label { font-size:12px; color:var(--muted); display:block; margin:10px 0 3px; }
+  .modal input { width:100%; }
+  .modal .acts { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  #toast { position:fixed; bottom:20px; right:20px; background:var(--panel2); border:1px solid var(--line); padding:12px 16px; border-radius:10px; display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Painel FIPLAN - Consolidado</h1>
+  <span id="who"></span>
+</header>
+
+<div id="gate" class="gate">Verificando acesso...</div>
+
+<div id="app" class="wrap" style="display:none">
+  <div id="kpis" class="kpis"></div>
+
+  <div id="totais" class="totbox">
+    <div class="totgrp">
+      <div class="tothdr" id="tot-filtro-hdr">Total do filtro atual</div>
+      <div class="totcards" id="tot-filtro"><span class="muted">—</span></div>
+    </div>
+    <div class="totgrp">
+      <div class="tothdr">Total geral (toda a base)</div>
+      <div class="totcards" id="tot-geral"><span class="muted">—</span></div>
+    </div>
+  </div>
+
+  <div class="tablebox" style="padding:14px; margin-bottom:14px">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+      <strong>Valor total por ano (R$)</strong>
+      <span class="muted" style="font-size:12px">EMP = empenhado &middot; NOB = pago &middot; PED = pedido</span>
+    </div>
+    <canvas id="chart-valores" height="90"></canvas>
+  </div>
+
+  <div class="filters">
+    <div><label>Fonte</label><select id="f-fonte"><option value="">Todas</option><option>EMP</option><option>NOB</option><option>PED</option></select></div>
+    <div><label>Ano</label><select id="f-ano"><option value="">Todos</option></select></div>
+    <div><label>Metodo</label><select id="f-metodo"><option value="">Todos</option></select></div>
+    <div style="flex:1; min-width:220px"><label>Busca (credor / contrato / doc)</label><input type="text" id="f-busca" placeholder="ex: 085/2024 ou nome do credor" /></div>
+    <div><label>Limite</label><select id="f-limit"><option>200</option><option selected>500</option><option>1000</option><option>2000</option></select></div>
+    <button id="btn-filtrar">Filtrar</button>
+    <button id="btn-naoresolv" class="sec" title="Atalho: ver so os que precisam de atencao">So FORA da CGC</button>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr>
+        <th>Fonte</th><th>Ano</th><th>Doc</th><th>Nº EMP</th><th>Credor</th><th>Nome do credor</th>
+        <th>Contrato</th><th>Metodo</th><th>Contratada (CGC)</th><th>Validacao</th><th>Acoes</th>
+      </tr></thead>
+      <tbody id="tbody"><tr><td colspan="11" class="muted">Carregue os filtros.</td></tr></tbody>
+    </table>
+  </div>
+  <p id="info" class="muted" style="font-size:12px"></p>
+</div>
+
+<!-- modal de correcao / ajuste -->
+<div id="modal" class="modal">
+  <div class="card">
+    <h3 id="modal-title">Corrigir contrato</h3>
+    <div id="modal-ctx" class="muted" style="font-size:12px"></div>
+    <label>Nº do contrato correto (opcional)</label>
+    <input type="text" id="m-contrato" placeholder="ex: 085/2024" />
+    <label>Comentario / observacao</label>
+    <input type="text" id="m-coment" placeholder="o que precisa ser ajustado" />
+    <div class="acts">
+      <button class="sec" id="m-cancel">Cancelar</button>
+      <button id="m-save">Salvar</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAze2Xj1H7QhZCz2z_ktR5b1qspbY9NPiI",
+  authDomain: "oliveirajunior-eca87.firebaseapp.com",
+  projectId: "oliveirajunior-eca87",
+  storageBucket: "oliveirajunior-eca87.firebasestorage.app",
+  messagingSenderId: "308166224942",
+  appId: "1:308166224942:web:46ec1026ea8c7d0d79c3bf"
+};
+const ADMIN_EMAIL = "diasoliveirajunior@gmail.com";
+const auth = getAuth(initializeApp(firebaseConfig));
+
+let _user = null;
+let _validacoes = {}; // key fonte_doc_id -> validacao
+
+const $ = (id) => document.getElementById(id);
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => t.style.display = "none", 3000); }
+
+onAuthStateChanged(auth, (user) => {
+  const who = (user && (user.email || user.uid) || "").toLowerCase();
+  if (user && who === ADMIN_EMAIL) {
+    _user = user;
+    $("who").textContent = who + " (admin)";
+    $("gate").style.display = "none";
+    $("app").style.display = "block";
+    iniciar();
+  } else {
+    $("gate").innerHTML = 'Acesso restrito ao administrador. Faca login na <a href="/index.html">pagina inicial</a> e volte aqui.';
+    $("app").style.display = "none";
+  }
+});
+
+async function api(method, pathQ, body) {
+  const token = await _user.getIdToken();
+  const opt = { method, headers: { "Authorization": "Bearer " + token } };
+  if (body) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  const res = await fetch(pathQ, opt);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || ("Erro " + res.status));
+  return data;
+}
+
+async function iniciar() {
+  try {
+    const r = await api("GET", "/api/fiplan/resumo");
+    renderKpis(r.resumo);
+    carregarValores().catch(e => console.warn("valores:", e));
+    carregarTotalGeral().catch(e => console.warn("total geral:", e));
+    popularMetodos(r.resumo);
+    popularAnos();
+    await carregarDados();
+  } catch (e) { toast("Erro: " + e.message); }
+}
+
+function renderKpis(resumo) {
+  const byMet = {}; let total = 0;
+  resumo.forEach(r => { byMet[r.metodo] = (byMet[r.metodo] || 0) + Number(r.n); total += Number(r.n); });
+  let resolvidos = 0, fora = 0, cand = 0, nao = 0;
+  Object.keys(byMet).forEach(m => {
+    const n = byMet[m];
+    if (m === 'NAO_RESOLVIDO') nao += n;
+    else if (m === 'CREDOR_CANDIDATO') cand += n;
+    else if (m.indexOf('FORA_CGC') >= 0) fora += n;
+    else if (m.indexOf('CGC') >= 0) resolvidos += n;
+  });
+  const cards = [
+    ["Total de registros", total, "var(--fg)"],
+    ["Contrato confirmado (CGC)", resolvidos, "var(--ok)"],
+    ["Citam contrato FORA da CGC", fora, "var(--warn)"],
+    ["Candidatos por credor", cand, "var(--accent)"],
+    ["Sem contrato", nao, "var(--muted)"]
+  ];
+  $("kpis").innerHTML = cards.map(c => '<div class="kpi"><div class="n" style="color:'+c[2]+'">'+c[1].toLocaleString('pt-BR')+'</div><div class="l">'+c[0]+'</div></div>').join("");
+}
+
+function popularMetodos(resumo) {
+  const mets = [...new Set(resumo.map(r => r.metodo))].sort();
+  $("f-metodo").innerHTML = '<option value="">Todos</option>' + mets.map(m => '<option>'+m+'</option>').join("");
+}
+function popularAnos() {
+  let opts = '<option value="">Todos</option>';
+  for (let y = 2026; y >= 2019; y--) opts += '<option>'+y+'</option>';
+  $("f-ano").innerHTML = opts;
+}
+
+function filtrosQuery(comLimit) {
+  const q = new URLSearchParams();
+  if ($("f-fonte").value) q.set("fonte", $("f-fonte").value);
+  if ($("f-ano").value) q.set("ano", $("f-ano").value);
+  if ($("f-metodo").value) q.set("metodo", $("f-metodo").value);
+  if ($("f-busca").value.trim()) q.set("busca", $("f-busca").value.trim());
+  if (comLimit) q.set("limit", $("f-limit").value);
+  return q.toString();
+}
+
+async function aplicarFiltros() {
+  await Promise.all([carregarDados(), carregarValores()]);
+}
+
+function fmtBRcompacto(v) {
+  if (!v) return "";
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + " bi";
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + " mi";
+  return (v / 1e3).toFixed(0) + " mil";
+}
+
+function fmtBRL(v) { return (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+function renderTotais(elId, valores) {
+  const por = { EMP: 0, NOB: 0, PED: 0 };
+  (valores || []).forEach(v => { if (por[v.fonte] != null) por[v.fonte] += Number(v.total) || 0; });
+  const cores = { EMP: 'var(--accent)', NOB: 'var(--ok)', PED: 'var(--warn)' };
+  const labels = { EMP: 'EMP · empenhado', NOB: 'NOB · pago', PED: 'PED · pedido' };
+  $(elId).innerHTML = ['EMP', 'NOB', 'PED'].map(f =>
+    '<div class="totcard"><div class="totlbl">' + labels[f] + '</div><div class="totval" style="color:' + cores[f] + '">' + fmtBRL(por[f]) + '</div></div>'
+  ).join("");
+}
+async function carregarTotalGeral() {
+  try { const r = await api("GET", "/api/fiplan/valores"); renderTotais("tot-geral", r.valores); }
+  catch (e) { console.warn("total geral:", e); }
+}
+
+let _chart = null;
+async function carregarValores() {
+  if (typeof Chart === "undefined") { console.warn("Chart.js nao carregou"); return; }
+  if (window.ChartDataLabels && !window._dlReg) { Chart.register(window.ChartDataLabels); window._dlReg = true; }
+  const r = await api("GET", "/api/fiplan/valores?" + filtrosQuery(false));
+  const _busca = $("f-busca").value.trim();
+  $("tot-filtro-hdr").textContent = _busca ? ('Total do filtro: "' + _busca + '"') : 'Total do filtro atual';
+  renderTotais("tot-filtro", r.valores);
+  const anos = [...new Set(r.valores.map(v => String(v.ano)))].sort();
+  const fontes = ["EMP", "NOB", "PED"];
+  const cores = { EMP: "#4a90e2", NOB: "#22c55e", PED: "#f59e0b" };
+  const datasets = fontes.map(f => ({
+    label: f,
+    backgroundColor: cores[f],
+    data: anos.map(a => { const x = r.valores.find(v => v.fonte === f && String(v.ano) === a); return x ? Number(x.total) : 0; })
+  }));
+  if (_chart) _chart.destroy();
+  _chart = new Chart(document.getElementById("chart-valores"), {
+    type: "bar",
+    data: { labels: anos, datasets: datasets },
+    options: {
+      responsive: true,
+      layout: { padding: { top: 26 } },
+      plugins: {
+        legend: { labels: { color: "#e6e9ef" } },
+        datalabels: {
+          anchor: "end", align: "end", color: "#e6e9ef", font: { size: 9, weight: "bold" },
+          rotation: -90, formatter: fmtBRcompacto
+        }
+      },
+      scales: {
+        x: { ticks: { color: "#9aa4b2" }, grid: { color: "#2a313c" } },
+        y: { ticks: { color: "#9aa4b2", callback: function (v) { return "R$ " + (v / 1e6).toFixed(0) + "M"; } }, grid: { color: "#2a313c" } }
+      }
+    }
+  });
+}
+
+async function carregarDados() {
+  $("tbody").innerHTML = '<tr><td colspan="11" class="muted">Carregando...</td></tr>';
+  try {
+    const v = await api("GET", "/api/fiplan/validacoes");
+    _validacoes = {};
+    (v.validacoes || []).forEach(x => { _validacoes[x.fonte + "_" + x.doc_id] = x; });
+    const r = await api("GET", "/api/fiplan/consolidado?" + filtrosQuery(true));
+    renderTabela(r.dados);
+    $("info").textContent = "Mostrando " + r.total + " registros (limite " + $("f-limit").value + ").";
+  } catch (e) { $("tbody").innerHTML = '<tr><td colspan="11" class="muted">Erro: '+e.message+'</td></tr>'; }
+}
+
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+
+function renderTabela(dados) {
+  if (!dados.length) { $("tbody").innerHTML = '<tr><td colspan="11" class="muted">Nenhum registro.</td></tr>'; return; }
+  $("tbody").innerHTML = dados.map(d => {
+    const k = d.fonte + "_" + d.doc_id;
+    const val = _validacoes[k];
+    const valTxt = val ? ('<span class="val">' + esc(val.acao) + (val.contrato_corrigido ? (' -> ' + esc(val.contrato_corrigido)) : '') + '</span>') : '<span class="muted">-</span>';
+    return '<tr>'
+      + '<td>'+esc(d.fonte)+'</td><td>'+esc(d.exercicio)+'</td><td>'+esc(d.doc_id)+'</td><td>'+esc(d.no_emp)+'</td>'
+      + '<td>'+esc(d.credor)+'</td><td>'+esc(d.nome_credor)+'</td>'
+      + '<td>'+esc(d.contrato_resolvido || '-')+'</td>'
+      + '<td><span class="tag m_'+esc(d.metodo)+'">'+esc(d.metodo)+'</span></td>'
+      + '<td>'+esc(d.contratada || '-')+'</td>'
+      + '<td>'+valTxt+'</td>'
+      + '<td class="row-actions">'
+      +   '<button class="ok" onclick="window._validar(\''+esc(d.fonte)+'\',\''+esc(d.doc_id)+'\')">Validar</button>'
+      +   '<button class="warn" onclick="window._corrigir(\''+esc(d.fonte)+'\',\''+esc(d.doc_id)+'\',\''+esc(d.contrato_resolvido||'')+'\')">Corrigir</button>'
+      + '</td></tr>';
+  }).join("");
+}
+
+window._validar = async (fonte, doc_id) => {
+  try { await api("POST", "/api/fiplan/validacao", { fonte, doc_id, acao: "validar" }); toast("Validado."); await carregarDados(); }
+  catch (e) { toast("Erro: " + e.message); }
+};
+
+let _mctx = null;
+window._corrigir = (fonte, doc_id, contratoAtual) => {
+  _mctx = { fonte, doc_id };
+  $("modal-title").textContent = "Corrigir / Solicitar ajuste";
+  $("modal-ctx").textContent = fonte + " - doc " + doc_id + (contratoAtual ? (" (atual: " + contratoAtual + ")") : "");
+  $("m-contrato").value = contratoAtual || "";
+  $("m-coment").value = "";
+  $("modal").classList.add("show");
+};
+$("m-cancel").onclick = () => $("modal").classList.remove("show");
+$("m-save").onclick = async () => {
+  try {
+    await api("POST", "/api/fiplan/validacao", {
+      fonte: _mctx.fonte, doc_id: _mctx.doc_id, acao: "corrigir",
+      contrato_corrigido: $("m-contrato").value.trim() || null,
+      comentario: $("m-coment").value.trim() || null
+    });
+    $("modal").classList.remove("show"); toast("Ajuste salvo."); await carregarDados();
+  } catch (e) { toast("Erro: " + e.message); }
+};
+
+$("btn-filtrar").onclick = aplicarFiltros;
+["f-fonte","f-ano","f-metodo","f-limit"].forEach(id => $(id).addEventListener("change", aplicarFiltros));
+$("f-busca").addEventListener("keydown", e => { if (e.key === "Enter") aplicarFiltros(); });
+$("btn-naoresolv").onclick = () => { $("f-metodo").value = "HISTORICO_FORA_CGC"; aplicarFiltros(); };
+</script>
+</body>
+</html>

@@ -1,0 +1,452 @@
+@import "tailwindcss";
+
+@keyframes financeMascotFloat {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+
+@keyframes financeMascotAlert {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+@keyframes financeChartWalk {
+  0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(-3deg); }
+  50% { transform: translate(-50%, calc(-50% - 8px)) scale(1.06) rotate(3deg); }
+}
+
+.finance-mascot {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-width: min(100%, 330px);
+  padding: .75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--card) 92%, var(--primary) 8%);
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.finance-mascot__animal {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--background);
+  font-size: 1.9rem;
+}
+
+.finance-mascot.is-animated .finance-mascot__animal {
+  animation: financeMascotFloat 2.8s ease-in-out infinite;
+}
+
+.finance-mascot--alerta.is-animated .finance-mascot__animal {
+  animation: financeMascotAlert .8s ease-in-out infinite;
+}
+
+.finance-layout--compacto .finance-main {
+  gap: .75rem;
+  padding: .75rem;
+}
+
+.finance-layout--compacto [data-slot="card"] {
+  border-radius: .65rem;
+}
+
+.finance-layout--foco .finance-main {
+  max-width: 1180px;
+}
+
+.finance-layout--foco .finance-mascot {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+}
+
+.finance-chart-stage {
+  position: relative;
+  min-height: 260px;
+}
+
+.finance-section-nav { display:flex; gap:.25rem; overflow-x:auto; border-bottom:1px solid var(--border); background:var(--background); padding:.55rem max(1rem, calc((100vw - 1500px) / 2)); }
+.finance-section-nav button { display:inline-flex; align-items:center; gap:.45rem; flex:0 0 auto; padding:.6rem .8rem; border-bottom:2px solid transparent; color:var(--muted-foreground); font-size:.78rem; font-weight:600; }
+.finance-section-nav button:hover, .finance-section-nav button.is-active { color:var(--foreground); border-bottom-color:#10b981; }
+.finance-dashboard-grid { display:grid; grid-template-columns:minmax(0,1fr) 290px; gap:1.25rem; }
+.finance-summary-panel { position:sticky; top:1rem; display:flex; flex-direction:column; min-height:430px; max-height:calc(100vh - 8rem); padding:1rem; overflow:hidden; border:1px solid var(--border); border-radius:var(--radius); background:var(--card); }
+.finance-summary-panel__items { animation:financePanelFade .35s ease-out; }
+@keyframes financePanelFade { from { opacity:0; transform:translateY(5px); } }
+.finance-section-content { max-width:1180px; margin:0 auto; width:100%; }
+.finance-preferences-menu { border-top:1px solid var(--border); border-bottom:1px solid var(--border); padding:1.25rem 0; }
+@media (max-width:1023px) { .finance-dashboard-grid { grid-template-columns:1fr; } .finance-summary-panel { position:static; min-height:0; max-height:none; } }
+
+.finance-chart-mascot {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  transform: translate(-50%, -50%);
+  transition: left 900ms cubic-bezier(.2,.8,.2,1), top 900ms cubic-bezier(.2,.8,.2,1);
+  pointer-events: none;
+}
+
+.finance-chart-mascot > span {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: 0 8px 20px color-mix(in oklab, var(--foreground) 14%, transparent);
+  font-size: 1.65rem;
+}
+
+.finance-chart-mascot.is-animated > span {
+  animation: financeChartWalk 1.1s ease-in-out infinite;
+}
+
+.finance-chart-mascot__bubble {
+  display: none;
+  min-width: 105px;
+  padding: .4rem .55rem;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: color-mix(in oklab, var(--card) 94%, transparent);
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--foreground) 10%, transparent);
+  backdrop-filter: blur(8px);
+  font-size: .65rem;
+  line-height: 1.2;
+}
+
+.finance-chart-mascot__bubble strong,
+.finance-chart-mascot__bubble small {
+  display: block;
+}
+
+@media (min-width: 640px) {
+  .finance-chart-mascot__bubble { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finance-mascot.is-animated .finance-mascot__animal {
+    animation: none;
+  }
+  .finance-chart-mascot,
+  .finance-chart-mascot.is-animated > span {
+    transition: none;
+    animation: none;
+  }
+}
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Estilos de Impressão de Alta Fidelidade (para exportar PDF do Painel CGC) */
+@media print {
+  /* Oculta elementos desnecessários para a impressão */
+  .print\:hidden,
+  header .print\:hidden,
+  button,
+  .mode-toggle,
+  [role="tablist"],
+  .print-hidden,
+  .fixed.inset-0.z-\[100\] {
+    display: none !important;
+  }
+
+  /* Aproveita o espaço da página A4 */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Configuração profissional da folha de impressão horizontal (paisagem) */
+  @page {
+    size: A4 landscape;
+    margin: 0 !important;
+  }
+
+  /* Padding compatível com header (2.2cm) + footer (1.6cm) fixos da página CGC */
+  body {
+    padding: 2.6cm 1.2cm 2.0cm 1.2cm !important;
+  }
+  /* Garante que backgrounds escuros do header/footer de impressão sejam impressos */
+  .print\:flex.fixed {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Quebra de página controlada pós-cards e seções */
+  .print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+    display: block;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  /* Evita cortes feios no meio dos componentes */
+  .card, tr, .grid > div {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    box-shadow: none !important;
+  }
+
+  /* --- SUPORTE A TEMA CLARO DE IMPRESSÃO (PADRÃO) --- */
+  html:not(.dark), body:not(.dark) {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html:not(.dark) .card, html:not(.dark) tr, html:not(.dark) .grid > div {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  html:not(.dark) .card-title, 
+  html:not(.dark) .card-description, 
+  html:not(.dark) p, 
+  html:not(.dark) span, 
+  html:not(.dark) h1, 
+  html:not(.dark) h2, 
+  html:not(.dark) h3, 
+  html:not(.dark) h4, 
+  html:not(.dark) td, 
+  html:not(.dark) li, 
+  html:not(.dark) label {
+    color: #0f172a !important;
+  }
+
+  html:not(.dark) th {
+    background-color: #0f172a !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html:not(.dark) tr:nth-child(even) {
+    background-color: #f8fafc !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* --- SUPORTE A TEMA ESCURO DE IMPRESSÃO (DARK MODE) --- */
+  html.dark, body.dark {
+    background-color: #0f172a !important;
+    color: #cbd5e1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html.dark .card, html.dark tr, html.dark .grid > div {
+    background: #1e293b !important;
+    color: #cbd5e1 !important;
+    border: 1px solid #334155 !important;
+  }
+
+  html.dark .card-title, 
+  html.dark h1, 
+  html.dark h2, 
+  html.dark h3, 
+  html.dark h4,
+  html.dark strong {
+    color: #f8fafc !important;
+  }
+
+  html.dark .card-description,
+  html.dark p, 
+  html.dark span, 
+  html.dark td, 
+  html.dark li, 
+  html.dark label,
+  html.dark .text-muted-foreground {
+    color: #cbd5e1 !important;
+  }
+
+  html.dark th {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+    border-color: #334155 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html.dark tr:nth-child(even) {
+    background-color: #1e293b !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* --- RÓTULO DINÂMICO PARA CONTADOR DE PÁGINAS NO RODAPÉ --- */
+  .print-footer-page::after {
+    content: "Página " counter(page) " de " counter(pages);
+  }
+}
+
+/* =========================================================================
+   MODO TV / APRESENTAÇÃO — ativado via ?tv=1 na URL
+   Escala a tipografia base e expande o layout pra visualização a distância
+   (reuniões, TVs de sala, apresentações).
+   Aplicado via useTvMode() que adiciona .tv-mode ao <html>.
+   ========================================================================= */
+html.tv-mode {
+  font-size: 20px; /* padrão do Tailwind é 16px → +25% em tudo baseado em rem */
+}
+
+html.tv-mode .max-w-6xl,
+html.tv-mode .max-w-7xl,
+html.tv-mode .max-w-\[1600px\] {
+  max-width: 100vw !important; /* usa largura cheia do viewport */
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+}
+
+/* Cards ganham padding maior pra respirar */
+html.tv-mode [class*="card"] {
+  padding: 1.25rem;
+}
+
+/* Botões e badges maiores */
+html.tv-mode button {
+  min-height: 2.5rem;
+}
+
+/* Tabelas: aumenta padding celular pra leitura de longe */
+html.tv-mode table th,
+html.tv-mode table td {
+  padding: 0.75rem 0.75rem !important;
+}
+
+/* Charts ganham altura maior automaticamente porque containers são baseados em rem */
+
+/* Header do painel: mais alto pra dar respiro */
+html.tv-mode header {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+

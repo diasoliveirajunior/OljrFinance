@@ -1,0 +1,35 @@
+{
+  "name": "oljr-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard OLJR",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "cd portal && npm install && npm run build",
+    "postinstall": "cd portal && npm install && npm run build"
+  },
+  "author": "Oliveira Junior",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/diasoliveirajunior/OljrSite.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/diasoliveirajunior/OljrSite/issues"
+  },
+  "homepage": "https://github.com/diasoliveirajunior/OljrSite#readme",
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "firebase-admin": "^13.10.0",
+    "googleapis": "^173.0.0",
+    "helmet": "^8.2.0",
+    "nodemailer": "^8.0.7"
+  }
+}

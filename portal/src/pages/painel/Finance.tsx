@@ -1,400 +1,334 @@
-import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Cloud, FileInput, LayoutDashboard, List, LogOut, Loader2, Plus, Settings2, Trash2, Wallet, TrendingUp, TrendingDown, PiggyBank } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ModeToggle } from "@/components/mode-toggle"
-import { GraficoMensal } from "@/components/finance/GraficoMensal"
-import { OrcamentoCategoria } from "@/components/finance/OrcamentoCategoria"
-import { ImportarExtrato } from "@/components/finance/ImportarExtrato"
-import { SincronizarDrive } from "@/components/finance/SincronizarDrive"
-import { MascoteFinance, PersonalizacaoFinance } from "@/components/finance/PersonalizacaoFinance"
-import { PainelFinanceLateral } from "@/components/finance/PainelFinanceLateral"
+  Bell, ChevronRight, CreditCard, Landmark, LayoutDashboard, LineChart,
+  List, Loader2, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
+} from "lucide-react"
 import { useAuth } from "@/contexts/auth"
+import { useTheme } from "@/hooks/useTheme"
+import { NovoLancamentoModal } from "@/components/finance/NovoLancamentoModal"
 import {
-  listarLancamentos,
-  adicionarLancamento,
+  fmtBRL, fmtDataCurta,
+  getPatrimonio, listarCartoes, listarContas, listarInvestimentos, listarLancamentos,
   removerLancamento,
-  getResumo,
-  getFinancePreferencias,
-  fmtBRL,
-  fmtData,
 } from "@/lib/finance-api"
-import type { TipoLancamento } from "@/lib/finance-api"
 
-function hojeISO(): string {
-  const d = new Date()
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, "0")
-  const dd = String(d.getDate()).padStart(2, "0")
-  return `${yyyy}-${mm}-${dd}`
+const CATEGORIA_CORES: Record<string, string> = {
+  Mercado: "#3b82f6", Combustível: "#f59e0b", Transporte: "#f59e0b",
+  Moradia: "#8b5cf6", Saúde: "#ec4899", Educação: "#06b6d4", Lazer: "#8b5cf6",
+  Vestuário: "#f43f5e", Assinaturas: "#a855f7", Pets: "#14b8a6",
+  Salário: "#10b981", Freelance: "#10b981", Rendimento: "#10b981",
+  Reembolso: "#10b981", Presente: "#10b981", Outros: "#64748b",
 }
-
-// Padrao visual OLJR "B + C" (05/11): Lucide em quadrado colorido + numero em destaque.
-// Cada KPI tem sua propria cor por contexto (saldo/receita/despesa/poupanca).
-function Kpi({
-  label,
-  valor,
-  hint,
-  Icon,
-  tone,
-}: {
-  label: string
-  valor: string
-  hint?: string
-  Icon: typeof Wallet
-  tone?: "default" | "success" | "danger" | "accent"
-}) {
-  // Quadrado colorido (bg) + icone branco (fg).
-  const bgClass =
-    tone === "success" ? "bg-emerald-500"
-    : tone === "danger" ? "bg-rose-500"
-    : tone === "accent" ? "bg-blue-500"
-    : "bg-slate-500"
-  return (
-    <Card>
-      <CardContent className="pt-5 pb-4">
-        <div className="flex items-start gap-3">
-          <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${bgClass} text-white shadow-sm`}>
-            <Icon className="size-5" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-            <p className="mt-1 text-2xl font-semibold tracking-tight truncate">{valor}</p>
-            {hint && <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
+function corDaCategoria(c: string): string { return CATEGORIA_CORES[c] || "#64748b" }
+function iniciais(nome: string): string {
+  const p = nome.trim().split(/\s+/)
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase()
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase()
 }
-
-function NovoLancamento({ categorias }: { categorias: string[] }) {
-  const qc = useQueryClient()
-  const [data, setData] = useState(hojeISO())
-  const [descricao, setDescricao] = useState("")
-  const [categoria, setCategoria] = useState(categorias[0] || "Outros")
-  const [valor, setValor] = useState("")
-  const [tipo, setTipo] = useState<TipoLancamento>("despesa")
-  const [erro, setErro] = useState<string | null>(null)
-
-  const mut = useMutation({
-    mutationFn: () =>
-      adicionarLancamento({
-        data,
-        descricao,
-        categoria,
-        valor: Number(String(valor).replace(",", ".")),
-        tipo,
-      }),
-    onSuccess: () => {
-      setDescricao("")
-      setValor("")
-      setErro(null)
-      qc.invalidateQueries({ queryKey: ["finance"] })
-    },
-    onError: (e) => setErro((e as Error).message),
-  })
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Plus className="size-4" /> Novo lançamento
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form
-          className="grid gap-3 sm:grid-cols-[120px_1fr_140px_140px_120px_auto]"
-          onSubmit={(e) => {
-            e.preventDefault()
-            mut.mutate()
-          }}
-        >
-          <div className="grid gap-1.5">
-            <Label htmlFor="lanc-data" className="text-[10px]">Data</Label>
-            <input
-              id="lanc-data"
-              type="date"
-              required
-              value={data}
-              onChange={(e) => setData(e.target.value)}
-              className="h-9 rounded-md border px-3 text-sm bg-background"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="lanc-desc" className="text-[10px]">Descrição</Label>
-            <input
-              id="lanc-desc"
-              type="text"
-              required
-              placeholder="Supermercado, Salário..."
-              value={descricao}
-              onChange={(e) => setDescricao(e.target.value)}
-              className="h-9 rounded-md border px-3 text-sm bg-background"
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-[10px]">Categoria</Label>
-            <Select value={categoria} onValueChange={setCategoria}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label className="text-[10px]">Tipo</Label>
-            <Select value={tipo} onValueChange={(v) => setTipo(v as TipoLancamento)}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="despesa">Despesa</SelectItem>
-                <SelectItem value="receita">Receita</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="lanc-valor" className="text-[10px]">Valor (R$)</Label>
-            <input
-              id="lanc-valor"
-              type="text"
-              required
-              inputMode="decimal"
-              placeholder="0,00"
-              value={valor}
-              onChange={(e) => setValor(e.target.value)}
-              className="h-9 rounded-md border px-3 text-sm bg-background"
-            />
-          </div>
-          <div className="flex items-end">
-            <Button type="submit" disabled={mut.isPending || !descricao || !valor}>
-              {mut.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-              Adicionar
-            </Button>
-          </div>
-          {erro && (
-            <Alert variant="destructive" className="sm:col-span-6">
-              <AlertDescription>{erro}</AlertDescription>
-            </Alert>
-          )}
-        </form>
-      </CardContent>
-    </Card>
-  )
+function saudacao(): string {
+  const h = new Date().getHours()
+  if (h < 12) return "Bom dia"
+  if (h < 18) return "Boa tarde"
+  return "Boa noite"
 }
 
 export function PainelFinance() {
   const navigate = useNavigate()
   const { me, logout } = useAuth()
   const qc = useQueryClient()
-  const [secao, setSecao] = useState<"visao" | "lancamentos" | "importar" | "nuvens" | "companheiro">("visao")
+  const [mode, toggleTheme] = useTheme()
+  const [modalAberto, setModalAberto] = useState(false)
 
-  const resumoQ = useQuery({ queryKey: ["finance", "resumo"], queryFn: getResumo })
-  const preferenciasQ = useQuery({
-    queryKey: ["finance", "preferencias"],
-    queryFn: getFinancePreferencias,
-  })
+  const patrimonioQ = useQuery({ queryKey: ["finance", "patrimonio"], queryFn: getPatrimonio })
+  const contasQ = useQuery({ queryKey: ["finance", "contas"], queryFn: listarContas })
+  const cartoesQ = useQuery({ queryKey: ["finance", "cartoes"], queryFn: listarCartoes })
+  const invQ = useQuery({ queryKey: ["finance", "investimentos"], queryFn: listarInvestimentos })
   const lancQ = useQuery({
-    queryKey: ["finance", "lancamentos"],
-    queryFn: () => listarLancamentos({ limit: 200 }),
+    queryKey: ["finance", "lancamentos", "ultimos"],
+    queryFn: () => listarLancamentos({ limit: 15 }),
   })
-
   const removeMut = useMutation({
     mutationFn: (id: string) => removerLancamento(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["finance"] }),
   })
 
-  const r = resumoQ.data
-  const categorias = r?.categorias_default ?? ["Outros"]
-  const lancamentos = [...(lancQ.data?.lancamentos ?? [])]
-    .sort((a, b) => String(b.data).localeCompare(String(a.data)))
-  const preferencias = preferenciasQ.data ?? {
-    mascote: "gato" as const,
-    layout: "confortavel" as const,
-    animacoes: true,
+  const isOwner = me?.email?.toLowerCase() === "diasoliveirajunior@gmail.com"
+  const nome = isOwner ? "Oliveira Junior" : (me?.usuario?.nome || me?.email || "")
+  const primeiro = nome.split(/\s+/)[0]
+  const papel = me?.usuario?.papel === "admin" || me?.usuario?.papel === "CEO" ? "CEO"
+    : me?.usuario?.papel === "co_gestor" ? "Co-gestor"
+    : me?.usuario?.papel === "membro" ? "Membro"
+    : "Convidado"
+  const isAdmin = me?.usuario?.papel === "admin" || isOwner
+
+  const contas = contasQ.data?.contas ?? []
+  const cartoes = cartoesQ.data?.cartoes ?? []
+  const investimentos = invQ.data?.investimentos ?? []
+  const lancamentos = useMemo(
+    () => [...(lancQ.data?.lancamentos ?? [])].sort((a, b) => b.data.localeCompare(a.data)),
+    [lancQ.data],
+  )
+  const pat = patrimonioQ.data
+
+  const labelDestino = (contaId?: string | null, cartaoId?: string | null) => {
+    if (contaId) {
+      const c = contas.find((x) => x.id === contaId)
+      return c ? `${c.nome} · conta` : "Conta removida"
+    }
+    if (cartaoId) {
+      const c = cartoes.find((x) => x.id === cartaoId)
+      return c ? `${c.nome} · cartão` : "Cartão removido"
+    }
+    return "Sem conta vinculada"
   }
 
-  const isOwner = me?.email?.toLowerCase() === "diasoliveirajunior@gmail.com"
-  const subtitle = isOwner
-    ? "Oliveira Junior · CEO"
-    : me?.usuario?.nome || me?.email
-
   return (
-    <div className={`min-h-svh bg-muted/30 finance-layout finance-layout--${preferencias.layout}`}>
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-[1400px] w-full items-center justify-between gap-4 p-4">
-          <div className="flex items-center gap-3">
-            <div className="border border-foreground px-3 py-1 text-sm font-light tracking-[2px] uppercase font-mono">
-              OLJR.
-            </div>
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white shadow-sm">
-              <Wallet className="size-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-tight leading-none">Finance</h1>
-              <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate("/")}>
-              <ArrowLeft className="size-4" />
-              {window.location.hostname.toLowerCase() === "finance.oljr.com.br" ? "Início" : "Hub"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => logout()}>
-              <LogOut className="size-4" /> Sair
-            </Button>
-            <ModeToggle />
-          </div>
-        </div>
-      </header>
-
-      <nav className="finance-section-nav" aria-label="Menu Finance">
-        {([
-          ["visao", "Visão geral", LayoutDashboard],
-          ["lancamentos", "Lançamentos", List],
-          ["importar", "Importar extrato", FileInput],
-          ["nuvens", "Conexões na nuvem", Cloud],
-          ["companheiro", "Companheiro", Settings2],
-        ] as const).map(([id, label, Icon]) => (
-          <button key={id} type="button" onClick={() => setSecao(id)} className={secao === id ? "is-active" : ""}>
-            <Icon className="size-4" /> {label}
-          </button>
-        ))}
-      </nav>
-
-      <main className="finance-main mx-auto max-w-[1500px] w-full p-6 flex flex-col gap-5">
-        {secao === "visao" && <div className="finance-dashboard-grid">
-          <div className="flex min-w-0 flex-col gap-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="ff-app">
+      <aside className="ff-sidebar">
+        <div className="ff-brand">
+          <div className="ff-brand-icon"><Wallet className="size-[18px]" /></div>
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Visão do mês</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight">Seu dinheiro em um só lugar</h2>
+            <div className="ff-brand-text">OLJR Finance</div>
+            <div className="ff-brand-sub">Oliveira Junior</div>
           </div>
-          <MascoteFinance preferencias={preferencias} resumo={r} />
         </div>
-        {resumoQ.isLoading ? (
-          <div className="flex justify-center p-8"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
-        ) : resumoQ.error ? (
-          <Alert variant="destructive">
-            <AlertDescription>Erro ao carregar resumo: {(resumoQ.error as Error).message}</AlertDescription>
-          </Alert>
-        ) : r && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <Kpi label="Saldo" valor={fmtBRL(r.saldo)} hint="histórico" Icon={Wallet} tone={r.saldo >= 0 ? "success" : "danger"} />
-            <Kpi label="Receitas mês" valor={fmtBRL(r.receita_mes)} hint={`${r.qtd_receita_mes} lançamentos`} Icon={TrendingUp} tone="success" />
-            <Kpi label="Despesas mês" valor={fmtBRL(r.despesa_mes)} hint={`${r.qtd_despesa_mes} lançamentos`} Icon={TrendingDown} tone="danger" />
-            <Kpi label="Taxa poupança" valor={r.taxa_poupanca.toFixed(1) + "%"} hint={`meta 30%`} Icon={PiggyBank} tone={r.taxa_poupanca >= 30 ? "success" : "accent"} />
+        <nav className="ff-nav">
+          <button className="ff-nav-item is-active"><LayoutDashboard className="size-4" /> Visão geral</button>
+          <button className="ff-nav-item" onClick={() => setModalAberto(true)}><Landmark className="size-4" /> Contas</button>
+          <button className="ff-nav-item"><CreditCard className="size-4" /> Cartões</button>
+          <button className="ff-nav-item"><TrendingUp className="size-4" /> Investimentos</button>
+          <button className="ff-nav-item"><List className="size-4" /> Movimentações</button>
+          <button className="ff-nav-item"><LineChart className="size-4" /> Relatórios</button>
+          {isAdmin && (
+            <>
+              <div className="ff-nav-sep">Administração</div>
+              <button className="ff-nav-item" onClick={() => navigate("/admin")}>Equipe e permissões</button>
+            </>
+          )}
+        </nav>
+        <div className="ff-sidebar-footer">
+          <div className="ff-avatar">{iniciais(nome)}</div>
+          <div className="ff-user-info">
+            <div className="ff-user-name">{nome}</div>
+            <div className="ff-user-role">{papel}</div>
+          </div>
+          <button className="ff-icon-btn" onClick={() => logout()} aria-label="Sair" title="Sair">
+            <LogOut className="size-4" />
+          </button>
+        </div>
+      </aside>
+
+      <main className="ff-main">
+        <div className="ff-topbar">
+          <div>
+            <h1>{saudacao()}, {primeiro}</h1>
+            <div className="ff-topbar-meta">
+              {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+            </div>
+          </div>
+          <div className="ff-topbar-actions">
+            <button className="ff-icon-btn" onClick={toggleTheme} aria-label="Alternar tema" title="Alternar claro/escuro">
+              {mode === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </button>
+            <button className="ff-icon-btn" aria-label="Notificações" title="Notificações">
+              <Bell className="size-4" />
+            </button>
+            <button className="ff-btn ff-btn--primary" onClick={() => setModalAberto(true)}>
+              <Plus className="size-4" /> Lançar
+            </button>
+          </div>
+        </div>
+
+        <section className="ff-patrimonio">
+          <div className="ff-patrimonio-main">
+            <div className="ff-label">Patrimônio total</div>
+            {patrimonioQ.isLoading || !pat ? (
+              <div className="ff-skeleton" style={{ width: 260, height: 44 }} />
+            ) : (
+              <div className="ff-patrimonio-value">{fmtBRL(pat.patrimonio_total)}</div>
+            )}
+            <div className="ff-patrimonio-hint">
+              {contas.length} {contas.length === 1 ? "conta" : "contas"} ·{" "}
+              {cartoes.length} {cartoes.length === 1 ? "cartão" : "cartões"} ·{" "}
+              {investimentos.length} {investimentos.length === 1 ? "investimento" : "investimentos"}
+            </div>
+          </div>
+          <div className="ff-patrimonio-stats">
+            <div className="ff-stat">
+              <div className="ff-label">Em contas</div>
+              <div className="ff-stat-value">{pat ? fmtBRL(pat.contas) : "—"}</div>
+            </div>
+            <div className="ff-stat">
+              <div className="ff-label">Investido</div>
+              <div className="ff-stat-value">{pat ? fmtBRL(pat.investimentos) : "—"}</div>
+            </div>
+            <div className="ff-stat">
+              <div className="ff-label">Receitas · mês</div>
+              <div className="ff-stat-value ff-up">{pat ? "+ " + fmtBRL(pat.receita_mes) : "—"}</div>
+            </div>
+            <div className="ff-stat">
+              <div className="ff-label">Despesas · mês</div>
+              <div className="ff-stat-value ff-down">{pat ? "- " + fmtBRL(pat.despesa_mes) : "—"}</div>
+            </div>
+          </div>
+        </section>
+
+        <SecaoHead titulo="Contas" />
+        {contasQ.isLoading ? <SkeletonCards /> : (
+          <div className="ff-cards-row">
+            {contas.map((c) => (
+              <article key={c.id} className="ff-bank-card">
+                <div className="ff-bank-card-top">
+                  <div className="ff-bank-logo" style={{ background: c.cor }}>{iniciais(c.nome)}</div>
+                  <div className="min-w-0">
+                    <div className="ff-card-name">{c.nome}</div>
+                    <div className="ff-card-type">{labelConta(c.tipo)}</div>
+                  </div>
+                </div>
+                <div className="ff-card-saldo">{fmtBRL(c.saldo_atual)}</div>
+                {c.banco && <div className="ff-card-meta"><span>{c.banco}</span></div>}
+              </article>
+            ))}
+            <button className="ff-bank-card ff-add-card" onClick={() => alert("Em breve: cadastro de conta")}>
+              <Plus className="size-5" /> Nova conta
+            </button>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-2 gap-5">
-          <GraficoMensal meses={6} preferencias={preferencias} />
-          <OrcamentoCategoria categorias={categorias} />
+        <SecaoHead titulo="Cartões de crédito" />
+        {cartoesQ.isLoading ? <SkeletonCards /> : (
+          <div className="ff-cards-row">
+            {cartoes.map((c) => (
+              <article key={c.id} className="ff-credit-card">
+                <div className="ff-bank-card-top">
+                  <div className="ff-bank-logo" style={{ background: c.cor }}>{iniciais(c.nome)}</div>
+                  <div className="min-w-0">
+                    <div className="ff-card-name">{c.nome}</div>
+                    <div className="ff-card-type">Fecha dia {c.dia_fechamento} · vence dia {c.dia_vencimento}</div>
+                  </div>
+                </div>
+                <div className="ff-card-saldo">{fmtBRL(c.fatura_atual)}</div>
+                <div className="ff-card-meta">
+                  <span>{c.percentual}% de {fmtBRL(c.limite)}</span>
+                </div>
+                <div className="ff-limit-bar"><div className="ff-limit-fill" style={{ width: Math.min(100, c.percentual) + "%" }} /></div>
+              </article>
+            ))}
+            <button className="ff-bank-card ff-add-card" onClick={() => alert("Em breve: cadastro de cartão")}>
+              <Plus className="size-5" /> Novo cartão
+            </button>
+          </div>
+        )}
+
+        <SecaoHead titulo="Investimentos" />
+        {invQ.isLoading ? <SkeletonCards /> : (
+          <div className="ff-cards-row">
+            {investimentos.map((i) => (
+              <article key={i.id} className="ff-bank-card">
+                <div className="ff-bank-card-top">
+                  <div className="ff-bank-logo" style={{ background: i.cor }}>{iniciais(i.nome)}</div>
+                  <div className="min-w-0">
+                    <div className="ff-card-name">{i.nome}</div>
+                    <div className="ff-card-type">{labelInvestimento(i.tipo)}{i.instituicao ? " · " + i.instituicao : ""}</div>
+                  </div>
+                </div>
+                <div className="ff-card-saldo">{fmtBRL(i.valor_atual)}</div>
+                <div className="ff-card-meta">
+                  <span>Aplicado {fmtBRL(i.valor_aplicado)}</span>
+                  <span className={i.rentabilidade_real >= 0 ? "ff-yield-pill" : "ff-yield-pill ff-neg"}>
+                    {i.rentabilidade_real >= 0 ? "+ " : ""}{i.rentabilidade_real.toFixed(1)}%
+                  </span>
+                </div>
+              </article>
+            ))}
+            <button className="ff-bank-card ff-add-card" onClick={() => alert("Em breve: cadastro de investimento")}>
+              <Plus className="size-5" /> Novo investimento
+            </button>
+          </div>
+        )}
+
+        <SecaoHead titulo="Últimas movimentações" />
+        <div className="ff-transactions">
+          {lancQ.isLoading ? (
+            <div className="ff-skeleton" style={{ height: 220 }} />
+          ) : lancamentos.length === 0 ? (
+            <div className="ff-empty">
+              Nenhum lançamento ainda. Clique em <strong>Lançar</strong> no topo pra registrar o primeiro.
+            </div>
+          ) : (
+            lancamentos.map((l) => {
+              const cor = corDaCategoria(l.categoria)
+              return (
+                <div key={l.id} className="ff-tx">
+                  <div className="ff-tx-icon" style={{ background: cor + "1f", color: cor }}>
+                    {l.tipo === "receita" ? <ChevronRight className="size-4" style={{ transform: "rotate(-90deg)" }} /> : <ChevronRight className="size-4" style={{ transform: "rotate(90deg)" }} />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="ff-tx-desc">{l.descricao}</div>
+                    <div className="ff-tx-meta">
+                      {l.categoria} · {labelDestino(l.conta_id, l.cartao_id)}
+                      {l.origem_texto ? " · " + l.origem_texto : ""}
+                    </div>
+                  </div>
+                  <div className={l.tipo === "receita" ? "ff-tx-amount ff-in" : "ff-tx-amount ff-out"}>
+                    {l.tipo === "receita" ? "+ " : "- "}{fmtBRL(l.valor)}
+                  </div>
+                  <div className="ff-tx-date">{fmtDataCurta(l.data)}</div>
+                  <button
+                    className="ff-tx-remove"
+                    onClick={() => { if (confirm("Apagar este lançamento?")) removeMut.mutate(l.id) }}
+                    disabled={removeMut.isPending}
+                    aria-label="Apagar lançamento"
+                    title="Apagar lançamento"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </button>
+                </div>
+              )
+            })
+          )}
         </div>
-          </div>
-          <PainelFinanceLateral lancamentos={lancamentos} />
-        </div>}
-
-        {secao === "lancamentos" && <>
-        <NovoLancamento categorias={categorias} />
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center justify-between">
-              <span>Últimos lançamentos</span>
-              <Badge variant="outline">{lancamentos.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {lancQ.isLoading ? (
-              <div className="flex justify-center p-6"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
-            ) : lancamentos.length === 0 ? (
-              <p className="text-sm text-muted-foreground p-4">
-                Nenhum lançamento ainda. Use o formulário acima pra registrar o primeiro.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[110px]">Data</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lancamentos.map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell className="text-xs text-muted-foreground">{fmtData(l.data)}</TableCell>
-                      <TableCell className="text-sm font-medium">{l.descricao}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Badge variant="outline" className="text-[10px]">{l.categoria}</Badge>
-                          {l.origem === "ofx" && (
-                            <Badge variant="secondary" className="text-[9px]" title="Importado via extrato OFX">OFX</Badge>
-                          )}
-                          {l.origem === "drive_xlsx" && (
-                            <Badge variant="secondary" className="text-[9px]" title="Sincronizado do Google Drive">Drive</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className={`text-right font-semibold ${l.tipo === "receita" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                        {l.tipo === "receita" ? "+" : "−"}{fmtBRL(l.valor)}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => removeMut.mutate(l.id)}
-                          disabled={removeMut.isPending}
-                          title="Apagar lançamento"
-                        >
-                          <Trash2 className="size-3.5 text-destructive" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-        </>}
-
-        {secao === "importar" && <ImportarExtrato />}
-        {secao === "nuvens" && <SincronizarDrive />}
-        {secao === "companheiro" && <div className="finance-section-content">
-          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div><p className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">Preferências</p><h2 className="mt-1 text-2xl font-semibold">Companheiro financeiro</h2></div>
-            <MascoteFinance preferencias={preferencias} resumo={r} />
-          </div>
-          <PersonalizacaoFinance preferencias={preferencias} />
-        </div>}
-
-        <p className="text-xs text-muted-foreground text-center">
-          v1 manual. Importação automática (CSV/Pluggy/PDF) e gráficos vêm nas próximas fases.
-        </p>
       </main>
+
+      <button className="ff-fab" onClick={() => setModalAberto(true)} aria-label="Novo lançamento" title="Novo lançamento">
+        <Plus className="size-6" />
+      </button>
+
+      <NovoLancamentoModal
+        aberto={modalAberto}
+        fechar={() => setModalAberto(false)}
+        contas={contas}
+        cartoes={cartoes}
+      />
     </div>
   )
+}
+
+function SecaoHead({ titulo }: { titulo: string }) {
+  return (
+    <div className="ff-section-head">
+      <h2>{titulo}</h2>
+      <button className="ff-link"><span>Gerenciar</span><ChevronRight className="size-3" /></button>
+    </div>
+  )
+}
+
+function SkeletonCards() {
+  return (
+    <div className="ff-cards-row">
+      {[1, 2, 3].map((i) => <div key={i} className="ff-skeleton" style={{ height: 118 }} />)}
+    </div>
+  )
+}
+
+function labelConta(t: string): string {
+  return { corrente: "Conta corrente", poupanca: "Poupança", carteira: "Carteira", outra: "Outra" }[t] || t
+}
+function labelInvestimento(t: string): string {
+  return ({
+    tesouro: "Tesouro direto", cdb: "CDB", lci: "LCI", lca: "LCA",
+    fundo: "Fundo", acao: "Ação", fii: "FII", cripto: "Cripto", poupanca: "Poupança", outro: "Outro",
+  } as Record<string, string>)[t] || t
 }

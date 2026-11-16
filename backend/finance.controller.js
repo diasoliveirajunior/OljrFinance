@@ -240,7 +240,10 @@ exports.listarLancamentos = async (req, res) => {
     }
 };
 
-// POST /api/finance/lancamentos { data, descricao, categoria, valor, tipo }
+// POST /api/finance/lancamentos
+// { data, descricao, categoria, valor, tipo, conta_id?, cartao_id?, origem_texto? }
+// conta_id e cartao_id sao mutuamente exclusivos. origem_texto so faz sentido em receitas
+// (ex: "SEDUC", "Freelance X"). Despesas usam a descricao como estabelecimento.
 exports.adicionarLancamento = async (req, res) => {
     try {
         const email = req.user.email;
@@ -249,20 +252,30 @@ exports.adicionarLancamento = async (req, res) => {
         const categoria = String(req.body.categoria || 'Outros').trim().slice(0, 60);
         const valor = sanitizeValor(req.body.valor);
         const tipo = String(req.body.tipo || '').trim().toLowerCase();
+        const conta_id = String(req.body.conta_id || '').trim() || null;
+        const cartao_id = String(req.body.cartao_id || '').trim() || null;
+        const origem_texto = String(req.body.origem_texto || '').trim().slice(0, 120) || null;
 
         if (!data) return res.status(400).json({ error: 'Data inválida (use YYYY-MM-DD).' });
         if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória.' });
         if (valor === null || valor === 0) return res.status(400).json({ error: 'Valor inválido.' });
         if (!TIPO_VALIDOS.includes(tipo)) return res.status(400).json({ error: "Tipo deve ser 'receita' ou 'despesa'." });
+        if (conta_id && cartao_id) return res.status(400).json({ error: 'Lançamento deve ser em uma conta OU em um cartão, não ambos.' });
 
         const db = admin.firestore();
+        // Valida posse da conta/cartão (evita atrelar a conta de outra pessoa).
+        if (conta_id) {
+            const c = await db.collection('finance_contas').doc(conta_id).get();
+            if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Conta inválida.' });
+        }
+        if (cartao_id) {
+            const c = await db.collection('finance_cartoes').doc(cartao_id).get();
+            if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Cartão inválido.' });
+        }
+
         const ref = await db.collection('finance_lancamentos').add({
-            email: email,
-            data: data,
-            descricao: descricao,
-            categoria: categoria,
-            valor: valor,
-            tipo: tipo,
+            email, data, descricao, categoria, valor, tipo,
+            conta_id, cartao_id, origem_texto,
             criado_em: admin.firestore.FieldValue.serverTimestamp(),
             criado_por: email
         });

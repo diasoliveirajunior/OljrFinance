@@ -140,9 +140,9 @@ app.get(/^\/portal(\/.*)?$/, (req, res) => {
     res.sendFile(path.join(portalDist, 'index.html'));
 });
 
-// 3b. Servir APENAS a pasta public/ (não a raiz do projeto).
-const publicDir = path.join(__dirname, 'public');
-app.use(express.static(publicDir));
+// 3b. Raiz redireciona pro portal React — nao servimos mais public/index.html
+// legado do OljrSite. Toda tela do Finance esta dentro do /portal (Vite build).
+app.get('/', (req, res) => res.redirect(302, '/portal/'));
 
 // 4. Rotas da API — Finance + Auth/Access/RBAC/Admin compartilhado.
 const authRoutes = require('./backend/auth.routes');
@@ -157,7 +157,7 @@ app.use('/api/rbac', rbacRoutes);
 app.use('/api/access', accessRoutes);
 app.use('/api/finance', financeRoutes);
 
-// Fallback SPA: rotas sem extensão vão para public/index.html; com extensão retornam 404.
+// Fallback: /api/* 404 JSON; qualquer outra rota redireciona pro portal.
 app.use((req, res) => {
     if (req.path.startsWith('/api/')) {
         return res.status(404).json({ error: `Rota de API não encontrada: ${req.method} ${req.path}` });
@@ -165,7 +165,7 @@ app.use((req, res) => {
     if (/\.[a-zA-Z0-9]{1,8}$/.test(req.path)) {
         return res.status(404).send('Not Found');
     }
-    res.sendFile(path.join(publicDir, 'index.html'));
+    res.redirect(302, '/portal/');
 });
 
 // 5. Iniciar Servidor

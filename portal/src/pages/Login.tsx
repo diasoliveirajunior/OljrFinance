@@ -6,19 +6,8 @@ import {
   sendPasswordResetEmail,
 } from "firebase/auth"
 import { FirebaseError } from "firebase/app"
-import { Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { auth } from "@/lib/firebase"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 
 function mensagemErro(code: string): string {
   switch (code) {
@@ -43,10 +32,9 @@ function mensagemErro(code: string): string {
 
 export function Login() {
   const navigate = useNavigate()
-  const isFinanceHost =
-    window.location.hostname.toLowerCase() === "finance.oljr.com.br"
   const [email, setEmail] = useState("")
   const [senha, setSenha] = useState("")
+  const [verSenha, setVerSenha] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(false)
@@ -86,79 +74,78 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-svh flex items-center justify-center bg-muted/30 p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">
-            {isFinanceHost ? "OLJR Finance" : "OLJR Analytics"}
-          </CardTitle>
-          <CardDescription>
-            {isFinanceHost
-              ? "Seu controle financeiro pessoal e familiar"
-              : "Entre com seu e-mail e senha"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={entrar} className="flex flex-col gap-4">
-            {erro && (
-              <Alert variant="destructive">
-                <AlertDescription>{erro}</AlertDescription>
-              </Alert>
-            )}
-            {aviso && (
-              <Alert>
-                <AlertDescription>{aviso}</AlertDescription>
-              </Alert>
-            )}
-            <div className="grid gap-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="voce@exemplo.com"
-              />
-            </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="senha">Senha</Label>
-                <button
-                  type="button"
-                  onClick={esqueciSenha}
-                  className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-                >
-                  Esqueci minha senha
-                </button>
-              </div>
-              <Input
+    <div className="oljr-auth-scene">
+      <div className="oljr-auth-card">
+        <div className="oljr-auth-brand">OLJR Finance</div>
+        <h1 className="oljr-auth-title">Entrar</h1>
+
+        {erro && <div className="oljr-auth-alert oljr-auth-alert--erro">{erro}</div>}
+        {aviso && <div className="oljr-auth-alert oljr-auth-alert--ok">{aviso}</div>}
+
+        <form onSubmit={entrar} className="oljr-auth-form">
+          <div className="oljr-auth-group">
+            <label htmlFor="email" className="oljr-auth-label">E-mail</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="oljr-auth-input"
+              placeholder="voce@exemplo.com"
+            />
+          </div>
+
+          <div className="oljr-auth-group">
+            <label htmlFor="senha" className="oljr-auth-label">Senha</label>
+            <div className="oljr-auth-password">
+              <input
                 id="senha"
-                type="password"
+                type={verSenha ? "text" : "password"}
                 autoComplete="current-password"
                 required
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
+                className="oljr-auth-input oljr-auth-input--password"
               />
+              <button
+                type="button"
+                onClick={() => setVerSenha((v) => !v)}
+                className="oljr-auth-eye"
+                aria-label={verSenha ? "Ocultar senha" : "Mostrar senha"}
+                title={verSenha ? "Ocultar senha" : "Mostrar senha"}
+              >
+                {verSenha ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
             </div>
-            <Button type="submit" disabled={carregando}>
-              {carregando && <Loader2 className="size-4 animate-spin" />}
-              Entrar
-            </Button>
-          </form>
-          <p className="mt-4 text-center text-sm text-muted-foreground">
-            Não tem acesso?{" "}
             <button
               type="button"
-              onClick={() => navigate("/solicitar-acesso")}
-              className="text-foreground underline underline-offset-4"
+              onClick={esqueciSenha}
+              className="oljr-auth-forgot"
             >
-              Solicitar acesso
+              Esqueci minha senha
             </button>
-          </p>
-        </CardContent>
-      </Card>
+          </div>
+
+          <div className="oljr-auth-actions">
+            <p className="oljr-auth-request">
+              Não tem acesso?{" "}
+              <button
+                type="button"
+                onClick={() => navigate("/solicitar-acesso")}
+                className="oljr-auth-link"
+              >
+                Solicitar acesso
+              </button>
+            </p>
+            <button type="submit" disabled={carregando} className="oljr-auth-submit">
+              {carregando && <Loader2 className="size-4 animate-spin" />}
+              Entrar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

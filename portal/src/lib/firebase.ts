@@ -1,7 +1,14 @@
 import { initializeApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
+import {
+  getAuth,
+  setPersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
+} from "firebase/auth"
 
-// Config pública do projeto Firebase (mesma do site atual — chave de cliente).
+// Config publica do projeto Firebase. apiKey/authDomain/projectId sao
+// chaves de cliente (projeto oliveirajunior-eca87) — publicas por design
+// do Firebase. A seguranca vem das regras do Firestore + tokens por sessao.
 const firebaseConfig = {
   apiKey: "AIzaSyAze2Xj1H7QhZCz2z_ktR5b1qspbY9NPiI",
   authDomain: "oliveirajunior-eca87.firebaseapp.com",
@@ -14,3 +21,10 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
+
+// Padrao OLJR: sessao persistente (login lembrado 90 dias) — IndexedDB/localStorage.
+// Se o browser bloquear (navegacao privada/configuracao restrita),
+// cai pra inMemoryPersistence (perde no fechar da aba, mas nao quebra login).
+setPersistence(auth, browserLocalPersistence).catch(() => {
+  setPersistence(auth, inMemoryPersistence).catch(() => {})
+})

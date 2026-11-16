@@ -450,3 +450,224 @@ html.tv-mode header {
   padding-bottom: 0.75rem;
 }
 
+/* =========================================================================
+   PADRAO OLJR — tela de acesso "Entrar"
+   Decidido em 21/10/2026, aplicado em todos os sistemas (CEO, SEDUC,
+   Prefeituras, Finance). Fundo escuro, Montserrat, cartao translucido,
+   titulo "Entrar" 1.8rem, rotulos maiusculos azul-acinzentado, campos
+   translucidos escuros, botao branco uppercase letter-spacing 3px,
+   icone de olho (sem texto "Mostrar").
+   Referencia visual canonica: modal #modalLogin do www.oljr.com.br
+   ========================================================================= */
+
+.oljr-auth-scene {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: #091016 radial-gradient(circle at center, #162436 0%, #05080c 100%);
+  font-family: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  color: #e6ecf5;
+}
+
+.oljr-auth-card {
+  width: 100%;
+  max-width: 450px;
+  padding: 40px;
+  border-radius: 12px;
+  background: rgba(22, 36, 54, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+}
+
+.oljr-auth-brand {
+  font-size: 0.72rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #8fa0b5;
+  margin-bottom: 1.1rem;
+  text-align: center;
+}
+
+.oljr-auth-title {
+  font-size: 1.8rem;
+  font-weight: 400;
+  color: #ffffff;
+  margin: 0 0 1.6rem 0;
+  text-align: left;
+}
+
+.oljr-auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.oljr-auth-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.oljr-auth-label {
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #8fa0b5;
+  font-weight: 500;
+}
+
+.oljr-auth-input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.oljr-auth-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.oljr-auth-input::placeholder {
+  color: #5b6a7f;
+}
+
+.oljr-auth-input--password {
+  padding-right: 2.75rem;
+}
+
+.oljr-auth-password {
+  position: relative;
+}
+
+.oljr-auth-eye {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  color: #8fa0b5;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.oljr-auth-eye:hover {
+  color: #ffffff;
+}
+
+.oljr-auth-forgot {
+  align-self: flex-end;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: #8fa0b5;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.oljr-auth-forgot:hover {
+  color: #ffffff;
+}
+
+.oljr-auth-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.4rem;
+}
+
+.oljr-auth-request {
+  font-size: 0.8rem;
+  color: #8fa0b5;
+  margin: 0;
+  text-align: left;
+}
+
+.oljr-auth-link {
+  background: transparent;
+  border: 0;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 0;
+  font-weight: 600;
+}
+
+.oljr-auth-submit {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 170px;
+  padding: 0.85rem 2rem;
+  background: #ffffff;
+  color: #091016;
+  border: 0;
+  border-radius: 8px;
+  text-transform: uppercase;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 3px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  justify-content: center;
+}
+
+.oljr-auth-submit:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.oljr-auth-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.oljr-auth-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.oljr-auth-alert {
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  border: 1px solid;
+}
+
+.oljr-auth-alert--erro {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #fca5a5;
+}
+
+.oljr-auth-alert--ok {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+@media (max-width: 480px) {
+  .oljr-auth-card { padding: 28px 22px; }
+  .oljr-auth-title { font-size: 1.5rem; }
+  .oljr-auth-submit { width: 100%; align-self: stretch; }
+}
+

@@ -49,6 +49,8 @@ function hojeISO(): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
+// Padrao visual OLJR "B + C" (05/11): Lucide em quadrado colorido + numero em destaque.
+// Cada KPI tem sua propria cor por contexto (saldo/receita/despesa/poupanca).
 function Kpi({
   label,
   valor,
@@ -62,22 +64,25 @@ function Kpi({
   Icon: typeof Wallet
   tone?: "default" | "success" | "danger" | "accent"
 }) {
-  const toneClass =
-    tone === "success" ? "text-emerald-600 dark:text-emerald-400"
-    : tone === "danger" ? "text-red-600 dark:text-red-400"
-    : tone === "accent" ? "text-blue-600 dark:text-blue-400"
-    : "text-foreground"
+  // Quadrado colorido (bg) + icone branco (fg).
+  const bgClass =
+    tone === "success" ? "bg-emerald-500"
+    : tone === "danger" ? "bg-rose-500"
+    : tone === "accent" ? "bg-blue-500"
+    : "bg-slate-500"
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-between">
-          <span>{label}</span>
-          <Icon className="size-4 text-muted-foreground" />
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className={`text-xl font-semibold ${toneClass}`}>{valor}</div>
-        {hint && <div className="text-xs text-muted-foreground mt-1">{hint}</div>}
+      <CardContent className="pt-5 pb-4">
+        <div className="flex items-start gap-3">
+          <div className={`flex size-10 shrink-0 items-center justify-center rounded-md ${bgClass} text-white shadow-sm`}>
+            <Icon className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight truncate">{valor}</p>
+            {hint && <p className="text-[11px] text-muted-foreground mt-0.5">{hint}</p>}
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
@@ -241,10 +246,11 @@ export function PainelFinance() {
             <div className="border border-foreground px-3 py-1 text-sm font-light tracking-[2px] uppercase font-mono">
               OLJR.
             </div>
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white shadow-sm">
+              <Wallet className="size-5" />
+            </div>
             <div>
-              <h1 className="text-base font-semibold tracking-tight leading-none flex items-center gap-2">
-                <Wallet className="size-4" /> Finance
-              </h1>
+              <h1 className="text-base font-semibold tracking-tight leading-none">Finance</h1>
               <p className="text-xs text-muted-foreground mt-1.5">{subtitle}</p>
             </div>
           </div>

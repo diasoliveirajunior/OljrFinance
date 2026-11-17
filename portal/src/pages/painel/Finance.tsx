@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "react-router-dom"
 import {
   Bell, ChevronRight, CreditCard, Landmark, LayoutDashboard, LineChart,
   List, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
@@ -35,7 +34,6 @@ function saudacao(): string {
 }
 
 export function PainelFinance() {
-  const navigate = useNavigate()
   const { me, logout } = useAuth()
   const qc = useQueryClient()
   const [mode, toggleTheme] = useTheme()
@@ -61,8 +59,6 @@ export function PainelFinance() {
     : me?.usuario?.papel === "co_gestor" ? "Co-gestor"
     : me?.usuario?.papel === "membro" ? "Membro"
     : "Convidado"
-  const isAdmin = me?.usuario?.papel === "admin" || isOwner
-
   const contas = contasQ.data?.contas ?? []
   const cartoes = cartoesQ.data?.cartoes ?? []
   const investimentos = invQ.data?.investimentos ?? []
@@ -101,12 +97,6 @@ export function PainelFinance() {
           <button className="ff-nav-item"><TrendingUp className="size-4" /> Investimentos</button>
           <button className="ff-nav-item"><List className="size-4" /> Movimentações</button>
           <button className="ff-nav-item"><LineChart className="size-4" /> Relatórios</button>
-          {isAdmin && (
-            <>
-              <div className="ff-nav-sep">Administração</div>
-              <button className="ff-nav-item" onClick={() => navigate("/admin")}>Equipe e permissões</button>
-            </>
-          )}
         </nav>
         <div className="ff-sidebar-footer">
           <div className="ff-avatar">{iniciais(nome)}</div>

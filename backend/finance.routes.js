@@ -24,6 +24,7 @@ router.get('/resumo', ctrl.resumo);
 router.get('/serie-mensal', ctrl.serieMensal);
 router.get('/categorias-mes', ctrl.categoriasMes);
 router.get('/patrimonio', investCtrl.patrimonio);
+router.get('/combustivel', ctrl.combustivel);
 
 // Orcamento
 router.get('/orcamento', ctrl.listarOrcamento);

@@ -5,6 +5,8 @@ export type TipoConta = "corrente" | "poupanca" | "carteira" | "outra"
 export type BandeiraCartao = "visa" | "mastercard" | "elo" | "amex" | "hipercard" | "outra"
 export type TipoInvestimento =
   | "tesouro" | "cdb" | "lci" | "lca" | "fundo" | "acao" | "fii" | "cripto" | "poupanca" | "outro"
+export type FormaPagamento =
+  | "extrato" | "debito" | "credito" | "transferencia" | "pix" | "dinheiro"
 
 export interface Lancamento {
   id: string
@@ -17,8 +19,23 @@ export interface Lancamento {
   conta_id?: string | null
   cartao_id?: string | null
   origem_texto?: string | null
+  forma_pagamento?: FormaPagamento
+  litros?: number | null
+  odometro?: number | null
   origem?: "manual" | "ofx" | "drive_xlsx"
   ofx_fitid?: string | null
+}
+
+export interface Combustivel {
+  abastecimentos: number
+  amostras_consumo: number
+  consumo_medio_km_l: number
+  preco_medio_litro_mes: number
+  preco_medio_litro_geral: number
+  litros_mes: number
+  gasto_mes: number
+  km_rodados_mes: number
+  ultimo_odometro: number | null
 }
 
 export interface Conta {
@@ -102,6 +119,9 @@ export function adicionarLancamento(body: {
   conta_id?: string | null
   cartao_id?: string | null
   origem_texto?: string | null
+  forma_pagamento?: FormaPagamento
+  litros?: number | null
+  odometro?: number | null
 }) {
   return apiFetch<{ ok: boolean; id: string }>("/api/finance/lancamentos", {
     method: "POST",
@@ -119,6 +139,10 @@ export function getResumo() {
 
 export function getPatrimonio() {
   return apiFetch<Patrimonio>("/api/finance/patrimonio")
+}
+
+export function getCombustivel() {
+  return apiFetch<Combustivel>("/api/finance/combustivel")
 }
 
 export function listarContas() {

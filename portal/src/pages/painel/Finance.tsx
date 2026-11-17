@@ -1,17 +1,26 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  Bell, ChevronRight, CreditCard, Landmark, LayoutDashboard, LineChart,
+  Bell, ChevronRight, CreditCard, Fuel, Landmark, LayoutDashboard, LineChart,
   List, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { NovoLancamentoModal } from "@/components/finance/NovoLancamentoModal"
 import {
+  NovaContaModal, NovoCartaoModal, NovoInvestimentoModal,
+} from "@/components/finance/CadastrosModais"
+import {
   fmtBRL, fmtDataCurta,
-  getPatrimonio, listarCartoes, listarContas, listarInvestimentos, listarLancamentos,
-  removerLancamento,
+  getCombustivel, getPatrimonio, listarCartoes, listarContas,
+  listarInvestimentos, listarLancamentos, removerLancamento,
+  type FormaPagamento,
 } from "@/lib/finance-api"
+
+const FORMA_LABEL: Record<FormaPagamento, string> = {
+  pix: "Pix", debito: "Débito", credito: "Crédito",
+  transferencia: "Transferência", extrato: "Débito em conta", dinheiro: "Dinheiro",
+}
 
 const CATEGORIA_CORES: Record<string, string> = {
   Mercado: "#3b82f6", Combustível: "#f59e0b", Transporte: "#f59e0b",
@@ -38,14 +47,19 @@ export function PainelFinance() {
   const qc = useQueryClient()
   const [mode, toggleTheme] = useTheme()
   const [modalAberto, setModalAberto] = useState(false)
+  const [contaAberta, setContaAberta] = useState(false)
+  const [cartaoAberto, setCartaoAberto] = useState(false)
+  const [investAberto, setInvestAberto] = useState(false)
+  const [filtroForma, setFiltroForma] = useState<FormaPagamento | "todas">("todas")
 
   const patrimonioQ = useQuery({ queryKey: ["finance", "patrimonio"], queryFn: getPatrimonio })
   const contasQ = useQuery({ queryKey: ["finance", "contas"], queryFn: listarContas })
   const cartoesQ = useQuery({ queryKey: ["finance", "cartoes"], queryFn: listarCartoes })
   const invQ = useQuery({ queryKey: ["finance", "investimentos"], queryFn: listarInvestimentos })
+  const combQ = useQuery({ queryKey: ["finance", "combustivel"], queryFn: getCombustivel })
   const lancQ = useQuery({
     queryKey: ["finance", "lancamentos", "ultimos"],
-    queryFn: () => listarLancamentos({ limit: 15 }),
+    queryFn: () => listarLancamentos({ limit: 30 }),
   })
   const removeMut = useMutation({
     mutationFn: (id: string) => removerLancamento(id),
@@ -62,11 +76,16 @@ export function PainelFinance() {
   const contas = contasQ.data?.contas ?? []
   const cartoes = cartoesQ.data?.cartoes ?? []
   const investimentos = invQ.data?.investimentos ?? []
-  const lancamentos = useMemo(
+  const todosLancamentos = useMemo(
     () => [...(lancQ.data?.lancamentos ?? [])].sort((a, b) => b.data.localeCompare(a.data)),
     [lancQ.data],
   )
+  const lancamentos = useMemo(() => {
+    if (filtroForma === "todas") return todosLancamentos.slice(0, 15)
+    return todosLancamentos.filter((l) => l.forma_pagamento === filtroForma).slice(0, 15)
+  }, [todosLancamentos, filtroForma])
   const pat = patrimonioQ.data
+  const comb = combQ.data
 
   const labelDestino = (contaId?: string | null, cartaoId?: string | null) => {
     if (contaId) {
@@ -181,7 +200,7 @@ export function PainelFinance() {
                 {c.banco && <div className="ff-card-meta"><span>{c.banco}</span></div>}
               </article>
             ))}
-            <button className="ff-bank-card ff-add-card" onClick={() => alert("Em breve: cadastro de conta")}>
+            <button className="ff-bank-card ff-add-card" onClick={() => setContaAberta(true)}>
               <Plus className="size-5" /> Nova conta
             </button>
           </div>
@@ -206,7 +225,7 @@ export function PainelFinance() {
                 <div className="ff-limit-bar"><div className="ff-limit-fill" style={{ width: Math.min(100, c.percentual) + "%" }} /></div>
               </article>
             ))}
-            <button className="ff-bank-card ff-add-card" onClick={() => alert("Em breve: cadastro de cartão")}>
+            <button className="ff-bank-card ff-add-card" onClick={() => setCartaoAberto(true)}>
               <Plus className="size-5" /> Novo cartão
             </button>
           </div>
@@ -233,13 +252,65 @@ export function PainelFinance() {
                 </div>
               </article>
             ))}
-            <button className="ff-bank-card ff-add-card" onClick={() => alert("Em breve: cadastro de investimento")}>
+            <button className="ff-bank-card ff-add-card" onClick={() => setInvestAberto(true)}>
               <Plus className="size-5" /> Novo investimento
             </button>
           </div>
         )}
 
+        {comb && comb.abastecimentos >= 1 && (
+          <>
+            <SecaoHead titulo="Veículo" />
+            <article className="ff-vehicle-card">
+              <div className="ff-vehicle-icon"><Fuel className="size-5" /></div>
+              <div className="ff-vehicle-stats">
+                <div className="ff-vstat">
+                  <div className="ff-label">Consumo médio</div>
+                  <div className="ff-vstat-value">
+                    {comb.consumo_medio_km_l > 0
+                      ? comb.consumo_medio_km_l.toFixed(1).replace(".", ",") + " km/l"
+                      : "— sem dados"}
+                  </div>
+                  <div className="ff-vstat-hint">
+                    {comb.amostras_consumo} {comb.amostras_consumo === 1 ? "amostra" : "amostras"}
+                  </div>
+                </div>
+                <div className="ff-vstat">
+                  <div className="ff-label">Preço médio litro (mês)</div>
+                  <div className="ff-vstat-value">
+                    {comb.preco_medio_litro_mes > 0
+                      ? "R$ " + comb.preco_medio_litro_mes.toFixed(3).replace(".", ",")
+                      : "—"}
+                  </div>
+                </div>
+                <div className="ff-vstat">
+                  <div className="ff-label">Km rodados · mês</div>
+                  <div className="ff-vstat-value">
+                    {comb.km_rodados_mes > 0 ? comb.km_rodados_mes.toLocaleString("pt-BR") + " km" : "—"}
+                  </div>
+                </div>
+                <div className="ff-vstat">
+                  <div className="ff-label">Gasto · mês</div>
+                  <div className="ff-vstat-value">{fmtBRL(comb.gasto_mes)}</div>
+                </div>
+              </div>
+            </article>
+          </>
+        )}
+
         <SecaoHead titulo="Últimas movimentações" />
+        <div className="ff-filters">
+          {(["todas", "pix", "debito", "credito", "transferencia", "extrato", "dinheiro"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              className={filtroForma === f ? "ff-chip is-active" : "ff-chip"}
+              onClick={() => setFiltroForma(f)}
+            >
+              {f === "todas" ? "Todas" : FORMA_LABEL[f]}
+            </button>
+          ))}
+        </div>
         <div className="ff-transactions">
           {lancQ.isLoading ? (
             <div className="ff-skeleton" style={{ height: 220 }} />
@@ -292,6 +363,9 @@ export function PainelFinance() {
         contas={contas}
         cartoes={cartoes}
       />
+      <NovaContaModal aberto={contaAberta} fechar={() => setContaAberta(false)} />
+      <NovoCartaoModal aberto={cartaoAberto} fechar={() => setCartaoAberto(false)} />
+      <NovoInvestimentoModal aberto={investAberto} fechar={() => setInvestAberto(false)} />
     </div>
   )
 }

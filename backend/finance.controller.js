@@ -240,10 +240,18 @@ exports.listarLancamentos = async (req, res) => {
     }
 };
 
+// Formas de pagamento aceitas. 'extrato' = movimentacao direta da conta
+// (debito em conta, boleto, etc). Separar isso permite filtros no extrato
+// sem misturar com a categoria (Mercado/Combustivel/Salario...).
+const FORMAS_PAGAMENTO = ['extrato', 'debito', 'credito', 'transferencia', 'pix', 'dinheiro'];
+
 // POST /api/finance/lancamentos
-// { data, descricao, categoria, valor, tipo, conta_id?, cartao_id?, origem_texto? }
+// { data, descricao, categoria, valor, tipo, conta_id?, cartao_id?,
+//   forma_pagamento?, origem_texto?, litros?, odometro? }
 // conta_id e cartao_id sao mutuamente exclusivos. origem_texto so faz sentido em receitas
 // (ex: "SEDUC", "Freelance X"). Despesas usam a descricao como estabelecimento.
+// litros e odometro so fazem sentido em categoria 'Combustivel' — permitem calcular
+// consumo (km/l) e preco medio por litro.
 exports.adicionarLancamento = async (req, res) => {
     try {
         const email = req.user.email;
@@ -256,6 +264,15 @@ exports.adicionarLancamento = async (req, res) => {
         const cartao_id = String(req.body.cartao_id || '').trim() || null;
         const origem_texto = String(req.body.origem_texto || '').trim().slice(0, 120) || null;
 
+        const forma_raw = String(req.body.forma_pagamento || '').trim().toLowerCase();
+        const forma_pagamento = FORMAS_PAGAMENTO.includes(forma_raw) ? forma_raw
+            : (cartao_id ? 'credito' : 'extrato');
+
+        const litros_n = Number(String(req.body.litros || '').replace(',', '.'));
+        const odom_n = Number(String(req.body.odometro || '').replace(',', '.'));
+        const litros = Number.isFinite(litros_n) && litros_n > 0 ? Math.round(litros_n * 1000) / 1000 : null;
+        const odometro = Number.isFinite(odom_n) && odom_n > 0 ? Math.round(odom_n) : null;
+
         if (!data) return res.status(400).json({ error: 'Data inválida (use YYYY-MM-DD).' });
         if (!descricao) return res.status(400).json({ error: 'Descrição é obrigatória.' });
         if (valor === null || valor === 0) return res.status(400).json({ error: 'Valor inválido.' });
@@ -263,7 +280,6 @@ exports.adicionarLancamento = async (req, res) => {
         if (conta_id && cartao_id) return res.status(400).json({ error: 'Lançamento deve ser em uma conta OU em um cartão, não ambos.' });
 
         const db = admin.firestore();
-        // Valida posse da conta/cartão (evita atrelar a conta de outra pessoa).
         if (conta_id) {
             const c = await db.collection('finance_contas').doc(conta_id).get();
             if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Conta inválida.' });
@@ -273,16 +289,77 @@ exports.adicionarLancamento = async (req, res) => {
             if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Cartão inválido.' });
         }
 
-        const ref = await db.collection('finance_lancamentos').add({
+        const doc = {
             email, data, descricao, categoria, valor, tipo,
-            conta_id, cartao_id, origem_texto,
+            conta_id, cartao_id, origem_texto, forma_pagamento,
             criado_em: admin.firestore.FieldValue.serverTimestamp(),
             criado_por: email
-        });
+        };
+        if (litros != null) doc.litros = litros;
+        if (odometro != null) doc.odometro = odometro;
+        const ref = await db.collection('finance_lancamentos').add(doc);
         res.status(201).json({ ok: true, id: ref.id });
     } catch (e) {
         console.error('finance.adicionarLancamento:', e);
         res.status(500).json({ error: 'Erro ao adicionar lançamento.' });
+    }
+};
+
+// GET /api/finance/combustivel
+// Agrega consumo medio (km/l), preco medio litro, total litros e km rodados no mes.
+// Precisa de 2+ lançamentos de combustivel COM odometro para calcular km/l
+// (diferenca entre abastecimentos / litros do abastecimento anterior).
+exports.combustivel = async (req, res) => {
+    try {
+        const email = req.user.email;
+        const snap = await admin.firestore().collection('finance_lancamentos')
+            .where('email', '==', email).where('categoria', '==', 'Combustível').get();
+        const tanques = [];
+        snap.forEach(d => {
+            const l = d.data();
+            if (l.litros > 0) tanques.push({ data: l.data, valor: l.valor, litros: l.litros, odometro: l.odometro || null });
+        });
+        tanques.sort((a, b) => a.data.localeCompare(b.data));
+
+        const mesAtual = new Date().toISOString().slice(0, 7);
+        let litrosMes = 0, gastoMes = 0, kmMes = 0;
+        tanques.forEach(t => {
+            if (t.data.startsWith(mesAtual)) {
+                litrosMes += t.litros; gastoMes += t.valor;
+            }
+        });
+
+        // Consumo medio km/l: diferenca entre odometros consecutivos / litros do tanque anterior.
+        let totalKm = 0, totalLitrosConsumidos = 0, consumoAmostras = 0;
+        for (let i = 1; i < tanques.length; i++) {
+            const a = tanques[i - 1], b = tanques[i];
+            if (a.odometro && b.odometro && b.odometro > a.odometro) {
+                totalKm += (b.odometro - a.odometro);
+                totalLitrosConsumidos += a.litros;
+                consumoAmostras++;
+                if (b.data.startsWith(mesAtual)) kmMes += (b.odometro - a.odometro);
+            }
+        }
+        const consumoMedio = totalLitrosConsumidos > 0 ? totalKm / totalLitrosConsumidos : 0;
+        const precoMedioLitroMes = litrosMes > 0 ? gastoMes / litrosMes : 0;
+        const totalLitros = tanques.reduce((s, t) => s + t.litros, 0);
+        const totalGasto = tanques.reduce((s, t) => s + t.valor, 0);
+        const precoMedioLitroGeral = totalLitros > 0 ? totalGasto / totalLitros : 0;
+
+        res.json({
+            abastecimentos: tanques.length,
+            amostras_consumo: consumoAmostras,
+            consumo_medio_km_l: Math.round(consumoMedio * 100) / 100,
+            preco_medio_litro_mes: Math.round(precoMedioLitroMes * 100) / 100,
+            preco_medio_litro_geral: Math.round(precoMedioLitroGeral * 100) / 100,
+            litros_mes: Math.round(litrosMes * 100) / 100,
+            gasto_mes: Math.round(gastoMes * 100) / 100,
+            km_rodados_mes: kmMes,
+            ultimo_odometro: tanques.length ? (tanques[tanques.length - 1].odometro || null) : null
+        });
+    } catch (e) {
+        console.error('finance.combustivel:', e);
+        res.status(500).json({ error: 'Erro ao calcular estatísticas de combustível.' });
     }
 };
 

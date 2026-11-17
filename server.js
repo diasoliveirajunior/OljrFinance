@@ -134,9 +134,23 @@ app.use('/api/auth/', strictLimiter);
 app.use('/api/access/', strictLimiter);
 
 // 3a. Servir o portal React (build do Vite) em /portal/* com fallback SPA.
+// Arquivos de /assets/* tem hash no nome e podem ficar cacheados agressivo.
+// index.html NAO pode cachear — caso contrario o browser continua usando
+// HTML velho apontando pra assets antigos depois de deploy novo.
 const portalDist = path.join(__dirname, 'portal', 'dist');
-app.use('/portal', express.static(portalDist));
+app.use('/portal/assets', express.static(path.join(portalDist, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+}));
+app.use('/portal', express.static(portalDist, {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-store, must-revalidate');
+        }
+    }
+}));
 app.get(/^\/portal(\/.*)?$/, (req, res) => {
+    res.set('Cache-Control', 'no-store, must-revalidate');
     res.sendFile(path.join(portalDist, 'index.html'));
 });
 

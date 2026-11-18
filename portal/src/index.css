@@ -1029,6 +1029,36 @@ html[data-theme="light"] .ff-app {
   border: 1px solid var(--ff-border);
   border-radius: 8px;
 }
+
+.ff-pref-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px; }
+.ff-pref-item {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 14px 16px;
+  background: var(--ff-surface-2);
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ff-pref-item:hover { border-color: var(--ff-border-strong); }
+.ff-pref-info { min-width: 0; flex: 1; }
+.ff-pref-title { font-size: 13px; font-weight: 600; }
+.ff-pref-desc { font-size: 11px; color: var(--ff-fg-muted); margin-top: 4px; line-height: 1.5; }
+.ff-pref-toggle {
+  appearance: none;
+  width: 36px; height: 20px; border-radius: 10px;
+  background: var(--ff-fg-faint); cursor: pointer;
+  position: relative; flex-shrink: 0;
+  transition: background .15s;
+}
+.ff-pref-toggle::after {
+  content: ""; position: absolute;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff;
+  transition: transform .15s;
+}
+.ff-pref-toggle:checked { background: var(--ff-brand); }
+.ff-pref-toggle:checked::after { transform: translateX(16px); }
 .ff-modal-head {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 14px;

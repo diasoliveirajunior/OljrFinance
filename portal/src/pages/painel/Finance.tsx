@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Bell, ChevronRight, CreditCard, FileInput, Fuel, Landmark, LayoutDashboard, LineChart,
-  List, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
+  List, LogOut, Moon, Plus, Settings, Sun, TrendingUp, Trash2, Wallet,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth"
 import { useTheme } from "@/hooks/useTheme"
@@ -11,10 +11,12 @@ import {
   NovaContaModal, NovoCartaoModal, NovoInvestimentoModal,
 } from "@/components/finance/CadastrosModais"
 import { ImportarOFXModal } from "@/components/finance/ImportarOFXModal"
+import { PreferenciasPainelModal } from "@/components/finance/PreferenciasPainelModal"
 import {
   fmtBRL, fmtDataCurta,
-  getCombustivel, getPatrimonio, listarCartoes, listarContas,
-  listarInvestimentos, listarLancamentos, removerLancamento,
+  getCombustivel, getPatrimonio, getPreferenciasPainel,
+  listarCartoes, listarContas, listarInvestimentos, listarLancamentos,
+  removerLancamento,
   type FormaPagamento,
 } from "@/lib/finance-api"
 
@@ -52,8 +54,10 @@ export function PainelFinance() {
   const [cartaoAberto, setCartaoAberto] = useState(false)
   const [investAberto, setInvestAberto] = useState(false)
   const [importAberto, setImportAberto] = useState(false)
+  const [prefsAberto, setPrefsAberto] = useState(false)
   const [filtroForma, setFiltroForma] = useState<FormaPagamento | "todas">("todas")
 
+  const prefsQ = useQuery({ queryKey: ["finance", "preferencias"], queryFn: getPreferenciasPainel })
   const patrimonioQ = useQuery({ queryKey: ["finance", "patrimonio"], queryFn: getPatrimonio })
   const contasQ = useQuery({ queryKey: ["finance", "contas"], queryFn: listarContas })
   const cartoesQ = useQuery({ queryKey: ["finance", "cartoes"], queryFn: listarCartoes })
@@ -146,6 +150,9 @@ export function PainelFinance() {
             <button className="ff-icon-btn" onClick={toggleTheme} aria-label="Alternar tema" title="Alternar claro/escuro">
               {mode === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
+            <button className="ff-icon-btn" onClick={() => setPrefsAberto(true)} aria-label="Personalizar painel" title="Personalizar painel">
+              <Settings className="size-4" />
+            </button>
             <button className="ff-icon-btn" aria-label="Notificações" title="Notificações">
               <Bell className="size-4" />
             </button>
@@ -211,7 +218,7 @@ export function PainelFinance() {
           </div>
         )}
 
-        {(cartoesQ.isLoading || cartoes.length > 0) && (
+        {(prefsQ.data?.mostrar_cartoes !== false) && (cartoesQ.isLoading || cartoes.length > 0) && (
           <>
             <SecaoHead titulo="Cartões de crédito" />
             {cartoesQ.isLoading ? <SkeletonCards /> : (
@@ -250,13 +257,13 @@ export function PainelFinance() {
             )}
           </>
         )}
-        {!cartoesQ.isLoading && cartoes.length === 0 && (
+        {(prefsQ.data?.mostrar_cartoes !== false) && !cartoesQ.isLoading && cartoes.length === 0 && (
           <button className="ff-empty-add" onClick={() => setCartaoAberto(true)}>
             <CreditCard className="size-4" /> Adicionar cartão de crédito
           </button>
         )}
 
-        {(invQ.isLoading || investimentos.length > 0) && (
+        {(prefsQ.data?.mostrar_investimentos !== false) && (invQ.isLoading || investimentos.length > 0) && (
           <>
             <SecaoHead titulo="Investimentos" />
             {invQ.isLoading ? <SkeletonCards /> : (
@@ -286,13 +293,13 @@ export function PainelFinance() {
             )}
           </>
         )}
-        {!invQ.isLoading && investimentos.length === 0 && (
+        {(prefsQ.data?.mostrar_investimentos !== false) && !invQ.isLoading && investimentos.length === 0 && (
           <button className="ff-empty-add" onClick={() => setInvestAberto(true)}>
             <TrendingUp className="size-4" /> Adicionar investimento
           </button>
         )}
 
-        {comb && comb.abastecimentos >= 1 && (
+        {(prefsQ.data?.mostrar_veiculo !== false) && comb && comb.abastecimentos >= 1 && (
           <>
             <SecaoHead titulo="Veículo" />
             <article className="ff-vehicle-card">
@@ -406,6 +413,7 @@ export function PainelFinance() {
         contas={contas}
         cartoes={cartoes}
       />
+      <PreferenciasPainelModal aberto={prefsAberto} fechar={() => setPrefsAberto(false)} />
     </div>
   )
 }

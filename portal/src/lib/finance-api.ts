@@ -148,6 +148,23 @@ export function getCombustivel() {
   return apiFetch<Combustivel>("/api/finance/combustivel")
 }
 
+export interface PreferenciasPainel {
+  mostrar_cartoes: boolean
+  mostrar_investimentos: boolean
+  mostrar_veiculo: boolean
+  mostrar_grupo_familiar: boolean
+}
+
+export function getPreferenciasPainel() {
+  return apiFetch<PreferenciasPainel>("/api/finance/preferencias")
+}
+
+export function salvarPreferenciasPainel(body: Partial<PreferenciasPainel>) {
+  return apiFetch<{ ok: boolean }>("/api/finance/preferencias", {
+    method: "PUT", body: JSON.stringify(body),
+  })
+}
+
 export interface OfxPreview {
   fitid: string
   data: string

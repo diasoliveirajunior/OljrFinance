@@ -16,8 +16,17 @@ const CATEGORIAS_DEFAULT = [
     'Lazer', 'Vestuário', 'Salário', 'Investimento', 'Transferência', 'Outros'
 ];
 
-const MASCOTES_VALIDOS = ['gato', 'cachorro', 'urso', 'macaco', 'nenhum'];
-const LAYOUTS_VALIDOS = ['confortavel', 'compacto', 'foco'];
+// Preferencias do painel Finance por usuario. Cada pessoa escolhe quais
+// secoes quer ver no dashboard. Default: tudo visivel. Contas sempre mostra
+// porque precisa delas pra qualquer lancamento.
+function defaultPrefs() {
+    return {
+        mostrar_cartoes: true,
+        mostrar_investimentos: true,
+        mostrar_veiculo: true,
+        mostrar_grupo_familiar: true
+    };
+}
 
 exports.preferencias = async (req, res) => {
     try {
@@ -25,32 +34,28 @@ exports.preferencias = async (req, res) => {
             .doc(req.user.email).get();
         const data = snap.exists ? snap.data() : {};
         res.json({
-            mascote: MASCOTES_VALIDOS.includes(data.mascote) ? data.mascote : 'gato',
-            layout: LAYOUTS_VALIDOS.includes(data.layout) ? data.layout : 'confortavel',
-            animacoes: data.animacoes !== false
+            mostrar_cartoes: data.mostrar_cartoes !== false,
+            mostrar_investimentos: data.mostrar_investimentos !== false,
+            mostrar_veiculo: data.mostrar_veiculo !== false,
+            mostrar_grupo_familiar: data.mostrar_grupo_familiar !== false
         });
     } catch (e) {
         console.error('finance.preferencias:', e);
-        res.status(500).json({ error: 'Erro ao carregar preferências.' });
+        res.status(500).json(defaultPrefs());
     }
 };
 
 exports.salvarPreferencias = async (req, res) => {
     try {
-        const mascote = String(req.body.mascote || '');
-        const layout = String(req.body.layout || '');
-        const animacoes = req.body.animacoes !== false;
-        if (!MASCOTES_VALIDOS.includes(mascote)) {
-            return res.status(400).json({ error: 'Mascote inválido.' });
-        }
-        if (!LAYOUTS_VALIDOS.includes(layout)) {
-            return res.status(400).json({ error: 'Layout inválido.' });
-        }
-        await admin.firestore().collection('finance_preferencias').doc(req.user.email).set({
-            email: req.user.email, mascote, layout, animacoes,
+        const patch = {
+            email: req.user.email,
             atualizado_em: admin.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        res.json({ ok: true, mascote, layout, animacoes });
+        };
+        ['mostrar_cartoes', 'mostrar_investimentos', 'mostrar_veiculo', 'mostrar_grupo_familiar']
+            .forEach(k => { if (req.body[k] !== undefined) patch[k] = !!req.body[k]; });
+        await admin.firestore().collection('finance_preferencias')
+            .doc(req.user.email).set(patch, { merge: true });
+        res.json({ ok: true });
     } catch (e) {
         console.error('finance.salvarPreferencias:', e);
         res.status(500).json({ error: 'Erro ao salvar preferências.' });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Loader2, X } from "lucide-react"
 import {
@@ -29,18 +29,19 @@ const SECOES: { chave: keyof PreferenciasPainel; titulo: string; descricao: stri
   },
 ]
 
-export function PreferenciasPainelModal({
+export function PreferenciasPainelModal(props: { aberto: boolean; fechar: () => void }) {
+  return props.aberto ? <PreferenciasForm {...props} /> : null
+}
+function PreferenciasForm({
   aberto, fechar,
 }: { aberto: boolean; fechar: () => void }) {
   const qc = useQueryClient()
   const { data } = useQuery({ queryKey: ["finance", "preferencias"], queryFn: getPreferenciasPainel })
-  const [draft, setDraft] = useState<PreferenciasPainel>({
+  const [changes, setDraft] = useState<PreferenciasPainel | null>(null)
+  const draft = changes ?? data ?? {
     mostrar_cartoes: true, mostrar_investimentos: true,
     mostrar_veiculo: true, mostrar_grupo_familiar: true,
-  })
-
-  useEffect(() => { if (data) setDraft(data) }, [data])
-  useEffect(() => { if (!aberto && data) setDraft(data) }, [aberto, data])
+  }
 
   const mut = useMutation({
     mutationFn: () => salvarPreferenciasPainel(draft),
@@ -84,7 +85,7 @@ export function PreferenciasPainelModal({
             type="button"
             className="ff-btn ff-btn--primary"
             onClick={() => mut.mutate()}
-            disabled={mut.isPending}
+            disabled={mut.isPending || !data}
           >
             {mut.isPending && <Loader2 className="size-4 animate-spin" />} Salvar
           </button>

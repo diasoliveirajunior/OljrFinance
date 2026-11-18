@@ -30,11 +30,11 @@ export async function apiFetch<T = unknown>(
   const res = await fetch(path, { ...init, headers })
   const text = await res.text()
   
-  let data: any = null
+  let data: unknown = null
   if (text) {
     try {
       data = JSON.parse(text)
-    } catch (e) {
+    } catch {
       if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
         throw new ApiError("Erro interno do servidor (resposta HTML inesperada). O sistema pode estar sendo atualizado.", res.status)
       }
@@ -43,8 +43,9 @@ export async function apiFetch<T = unknown>(
   }
 
   if (!res.ok) {
-    const msg = (data && data.error) || `Erro ${res.status}`
-    throw new ApiError(msg, res.status, data && data.code)
+    const error = data && typeof data === "object" ? data as Record<string, unknown> : {}
+    const msg = typeof error.error === "string" ? error.error : `Erro ${res.status}`
+    throw new ApiError(msg, res.status, typeof error.code === "string" ? error.code : undefined)
   }
   return data as T
 }

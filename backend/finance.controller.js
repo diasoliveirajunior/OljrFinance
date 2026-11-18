@@ -89,148 +89,23 @@ function categorizarAutomatico(descricao) {
 
 exports.categorizarAutomatico = categorizarAutomatico;
 
-// Parser OFX minimalista. Aceita OFX 1.x (SGML) e OFX 2.x (XML).
-// Extrai blocos STMTTRN e retorna array {fitid, data, valor, tipo, descricao}.
-function parseOfx(content) {
-    if (!content || typeof content !== 'string') return [];
-    const transacoes = [];
-    // Normaliza: remove BOM, remove CDATA-esque, colapsa whitespace mínimo.
-    let txt = content.replace(/^﻿/, '');
-    // Regex tolerante — funciona pra OFX SGML (tags soltas) e XML (tags fechadas).
-    const blocos = txt.match(/<STMTTRN>([\s\S]*?)(?=<\/STMTTRN>|<STMTTRN>|<\/BANKTRANLIST>)/gi) || [];
-    for (const bloco of blocos) {
-        const get = (tag) => {
-            const re = new RegExp(`<${tag}>([^<\\r\\n]*)`, 'i');
-            const m = bloco.match(re);
-            return m ? m[1].trim() : '';
-        };
-        const trntype = get('TRNTYPE').toUpperCase();
-        const dtposted = get('DTPOSTED');
-        const trnamt = get('TRNAMT');
-        const fitid = get('FITID');
-        const memo = get('MEMO');
-        const name = get('NAME');
-        if (!dtposted || !trnamt || !fitid) continue;
-
-        // DTPOSTED formato YYYYMMDD ou YYYYMMDDhhmmss[.xxx][+TZ]
-        const dataIso = `${dtposted.slice(0, 4)}-${dtposted.slice(4, 6)}-${dtposted.slice(6, 8)}`;
-        const valorNum = parseFloat(String(trnamt).replace(',', '.'));
-        if (isNaN(valorNum) || valorNum === 0) continue;
-
-        // Regra de tipo: TRNTYPE CREDIT/DEP = receita; DEBIT/POS/CHECK = despesa;
-        // fallback pelo sinal do valor.
-        let tipo;
-        if (['CREDIT', 'DEP', 'INT', 'DIV'].includes(trntype)) tipo = 'receita';
-        else if (['DEBIT', 'POS', 'CHECK', 'PAYMENT', 'ATM', 'CASH', 'XFER'].includes(trntype)) tipo = 'despesa';
-        else tipo = valorNum > 0 ? 'receita' : 'despesa';
-
-        const descricao = [memo, name].filter(Boolean).join(' — ').slice(0, 200) || 'Sem descrição';
-        const categoria = categorizarAutomatico(descricao);
-
-        transacoes.push({
-            fitid: fitid,
-            data: dataIso,
-            valor: Math.abs(valorNum),
-            tipo: tipo,
-            descricao: descricao,
-            categoria: categoria
-        });
-    }
-    return transacoes;
-}
-
-// POST /api/finance/importar-ofx
-// { ofxContent: string, banco?: string, conta_id?: string, cartao_id?: string, preview_only?: boolean }
-// Se preview_only=true, parseia e retorna transacoes sem gravar nada.
-// conta_id e cartao_id sao mutuamente exclusivos; todos os lancamentos criados
-// recebem o id escolhido (geralmente conta_id, cartao_id so em imports de fatura).
+// Compatibilidade com clientes anteriores. A confirmação usa o mesmo caminho atômico da nova UI.
 exports.importarOfx = async (req, res) => {
     try {
-        const email = req.user.email;
-        const ofxContent = String(req.body.ofxContent || '');
-        const banco = String(req.body.banco || 'Banco').trim().slice(0, 60);
-        const conta_id = String(req.body.conta_id || '').trim() || null;
-        const cartao_id = String(req.body.cartao_id || '').trim() || null;
-        const preview_only = req.body.preview_only === true;
-        if (conta_id && cartao_id) {
-            return res.status(400).json({ error: 'Escolha uma conta OU um cartão, não ambos.' });
+        const content = String(req.body.ofxContent || '');
+        if (!content || Buffer.byteLength(content) > 5 * 1024 * 1024) {
+            return res.status(400).json({ error: 'Escolha um OFX de até 5 MB.' });
         }
-
-        if (!ofxContent || ofxContent.length < 50) {
-            return res.status(400).json({ error: 'Arquivo OFX vazio ou inválido.' });
+        const { ofx } = require('./finance-import');
+        const result = ofx(content, categorizarAutomatico);
+        if (req.body.preview_only === true) {
+            return res.json({ ok: true, preview_only: true, totalNoArquivo: result.rows.length,
+                preview: result.rows.slice(0, 25).map(r => ({ ...r, valor: Number(r.valor) })) });
         }
-        if (ofxContent.length > 5 * 1024 * 1024) {
-            return res.status(413).json({ error: 'Arquivo muito grande (limite 5 MB).' });
-        }
-
-        const transacoes = parseOfx(ofxContent);
-        if (transacoes.length === 0) {
-            return res.status(400).json({ error: 'Nenhuma transação encontrada no arquivo. Confira se é OFX válido.' });
-        }
-
-        const db = admin.firestore();
-
-        // Modo preview: so retorna lista parseada, nao grava.
-        if (preview_only) {
-            return res.json({
-                ok: true,
-                preview_only: true,
-                totalNoArquivo: transacoes.length,
-                preview: transacoes.slice(0, 25).map(t => ({
-                    fitid: t.fitid, data: t.data, descricao: t.descricao,
-                    valor: t.valor, tipo: t.tipo, categoria: t.categoria
-                }))
-            });
-        }
-
-        // Valida posse do destino antes de gravar.
-        if (conta_id) {
-            const c = await db.collection('finance_contas').doc(conta_id).get();
-            if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Conta inválida.' });
-        }
-        if (cartao_id) {
-            const c = await db.collection('finance_cartoes').doc(cartao_id).get();
-            if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Cartão inválido.' });
-        }
-
-        let importadas = 0, duplicadas = 0;
-        for (const tx of transacoes) {
-            const dup = await db.collection('finance_lancamentos')
-                .where('email', '==', email)
-                .where('ofx_fitid', '==', tx.fitid)
-                .limit(1).get();
-            if (!dup.empty) { duplicadas++; continue; }
-
-            await db.collection('finance_lancamentos').add({
-                email: email,
-                data: tx.data,
-                descricao: tx.descricao,
-                categoria: tx.categoria,
-                valor: tx.valor,
-                tipo: tx.tipo,
-                conta_id, cartao_id,
-                forma_pagamento: cartao_id ? 'credito' : 'extrato',
-                origem: 'ofx',
-                ofx_fitid: tx.fitid,
-                ofx_banco: banco,
-                criado_em: admin.firestore.FieldValue.serverTimestamp(),
-                criado_por: email
-            });
-            importadas++;
-        }
-
-        res.json({
-            ok: true,
-            importadas: importadas,
-            duplicadas: duplicadas,
-            totalNoArquivo: transacoes.length,
-            preview: transacoes.slice(0, 5).map(t => ({
-                data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, categoria: t.categoria
-            }))
-        });
-    } catch (e) {
-        console.error('finance.importarOfx:', e);
-        res.status(500).json({ error: 'Erro ao importar OFX: ' + e.message });
+        req.body = { ...req.body, formato: 'ofx', lancamentos: result.rows };
+        return require('./finance-import.controller').confirmar(req, res);
+    } catch {
+        return res.status(400).json({ error: 'Não foi possível ler o OFX. Confira o arquivo e use a nova importação.' });
     }
 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { FormEvent } from "react"
 import {
   EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateProfile,
@@ -6,7 +6,6 @@ import {
 import { FirebaseError } from "firebase/app"
 import { Camera, Eye, EyeOff, Loader2, X } from "lucide-react"
 import { useAuth } from "@/contexts/auth"
-import { auth } from "@/lib/firebase"
 
 type Aba = "perfil" | "senha"
 
@@ -32,11 +31,14 @@ function msgErro(code: string): string {
   }
 }
 
-export function PerfilModal({ aberto, fechar }: { aberto: boolean; fechar: () => void }) {
+export function PerfilModal(props: { aberto: boolean; fechar: () => void }) {
+  return props.aberto ? <PerfilForm {...props} /> : null
+}
+function PerfilForm({ aberto, fechar }: { aberto: boolean; fechar: () => void }) {
   const { firebaseUser, me } = useAuth()
   const [aba, setAba] = useState<Aba>("perfil")
-  const [nome, setNome] = useState("")
-  const [foto, setFoto] = useState<string | null>(null)
+  const [nome, setNome] = useState(firebaseUser?.displayName || me?.usuario?.nome || "")
+  const [foto, setFoto] = useState<string | null>(firebaseUser?.photoURL || null)
   const [senhaAtual, setSenhaAtual] = useState("")
   const [senhaNova, setSenhaNova] = useState("")
   const [senhaNova2, setSenhaNova2] = useState("")
@@ -45,16 +47,6 @@ export function PerfilModal({ aberto, fechar }: { aberto: boolean; fechar: () =>
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
-
-  useEffect(() => {
-    if (!aberto) return
-    setAba("perfil")
-    setNome(firebaseUser?.displayName || me?.usuario?.nome || "")
-    setFoto(firebaseUser?.photoURL || null)
-    setSenhaAtual(""); setSenhaNova(""); setSenhaNova2("")
-    setVerAtual(false); setVerNova(false)
-    setErro(null); setAviso(null); setSalvando(false)
-  }, [aberto, firebaseUser, me])
 
   async function salvarPerfil(e: FormEvent) {
     e.preventDefault()
@@ -251,6 +243,3 @@ export function PerfilModal({ aberto, fechar }: { aberto: boolean; fechar: () =>
     </div>
   )
 }
-
-// Para o sidebar/topbar re-usarem o auth sem duplicar import.
-export { auth as firebaseAuth }

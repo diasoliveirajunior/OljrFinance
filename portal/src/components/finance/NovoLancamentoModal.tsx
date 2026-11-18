@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { ArrowDown, ArrowUp, Loader2, X } from "lucide-react"
@@ -27,8 +27,8 @@ const FORMAS: { valor: FormaPagamento; label: string }[] = [
 const OUTRO_CAT = "__outro__"
 function CategoriaSelect({ lista, valor, setValor }: { lista: string[]; valor: string; setValor: (v: string) => void }) {
   const naLista = lista.includes(valor)
-  const [modoOutro, setModoOutro] = useState(!naLista && !!valor)
-  useEffect(() => { setModoOutro(!naLista && !!valor) }, [valor, naLista])
+  const [outroEscolhido, setModoOutro] = useState(false)
+  const modoOutro = outroEscolhido || (!naLista && !!valor)
   return (
     <>
       <select
@@ -63,7 +63,11 @@ function num(v: string): number {
   return Number(v.replace(/\./g, "").replace(",", "."))
 }
 
-export function NovoLancamentoModal({
+type ModalProps = { aberto: boolean; fechar: () => void; contas: Conta[]; cartoes: Cartao[] }
+export function NovoLancamentoModal(props: ModalProps) {
+  return props.aberto ? <NovoLancamentoForm {...props} /> : null
+}
+function NovoLancamentoForm({
   aberto, fechar, contas, cartoes,
 }: {
   aberto: boolean; fechar: () => void; contas: Conta[]; cartoes: Cartao[]
@@ -74,37 +78,13 @@ export function NovoLancamentoModal({
   const [descricao, setDescricao] = useState("")
   const [valor, setValor] = useState("")
   const [categoria, setCategoria] = useState("Mercado")
-  const [destino, setDestino] = useState<string>("")
-  const [forma, setForma] = useState<FormaPagamento>("pix")
+  const destinoInicial = contas[0] ? `conta:${contas[0].id}` : cartoes[0] ? `cartao:${cartoes[0].id}` : ""
+  const [destino, setDestino] = useState<string>(destinoInicial)
+  const [forma, setForma] = useState<FormaPagamento>(destinoInicial.startsWith("cartao:") ? "credito" : "pix")
   const [origemTexto, setOrigemTexto] = useState("")
   const [litros, setLitros] = useState("")
   const [odometro, setOdometro] = useState("")
   const [erro, setErro] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!aberto) return
-    setTipo("despesa")
-    setData(hojeISO())
-    setDescricao(""); setValor("")
-    setCategoria("Mercado")
-    setOrigemTexto(""); setLitros(""); setOdometro("")
-    setErro(null)
-    const primeiroConta = contas[0]
-    const primeiroCartao = cartoes[0]
-    const d = primeiroConta ? `conta:${primeiroConta.id}` : primeiroCartao ? `cartao:${primeiroCartao.id}` : ""
-    setDestino(d)
-    setForma(d.startsWith("cartao:") ? "credito" : "pix")
-  }, [aberto, contas, cartoes])
-
-  useEffect(() => {
-    const lista = tipo === "despesa" ? CATEGORIAS_DESPESA : CATEGORIAS_RECEITA
-    if (!lista.includes(categoria)) setCategoria(lista[0])
-  }, [tipo, categoria])
-
-  useEffect(() => {
-    if (destino.startsWith("cartao:")) setForma("credito")
-    else if (forma === "credito") setForma("pix")
-  }, [destino, forma])
 
   const isCombustivel = tipo === "despesa" && categoria === "Combustível"
   const precoLitro = useMemo(() => {
@@ -158,10 +138,10 @@ export function NovoLancamentoModal({
           <button className="ff-icon-btn" onClick={fechar} aria-label="Fechar"><X className="size-4" /></button>
         </div>
         <div className="ff-tipo-switch">
-          <button type="button" className={tipo === "despesa" ? "is-active danger" : ""} onClick={() => setTipo("despesa")}>
+          <button type="button" className={tipo === "despesa" ? "is-active danger" : ""} onClick={() => { setTipo("despesa"); setCategoria("Mercado") }}>
             <ArrowUp className="size-4" /> Despesa
           </button>
-          <button type="button" className={tipo === "receita" ? "is-active success" : ""} onClick={() => setTipo("receita")}>
+          <button type="button" className={tipo === "receita" ? "is-active success" : ""} onClick={() => { setTipo("receita"); setCategoria("Salário") }}>
             <ArrowDown className="size-4" /> Receita
           </button>
         </div>
@@ -179,7 +159,7 @@ export function NovoLancamentoModal({
           </div>
           <div className="ff-field">
             <label>Categoria</label>
-            <CategoriaSelect lista={lista} valor={categoria} setValor={setCategoria} />
+            <CategoriaSelect key={tipo} lista={lista} valor={categoria} setValor={setCategoria} />
           </div>
           <div className="ff-field ff-field--full">
             <label>{tipo === "despesa" ? "Estabelecimento / descrição" : "Descrição"}</label>
@@ -189,7 +169,7 @@ export function NovoLancamentoModal({
           </div>
           <div className="ff-field">
             <label>{tipo === "despesa" ? "Pagou com" : "Entrou em"}</label>
-            <select value={destino} onChange={(e) => setDestino(e.target.value)}>
+            <select value={destino} onChange={(e) => { setDestino(e.target.value); setForma(e.target.value.startsWith("cartao:") ? "credito" : "pix") }}>
               {destinoOptions.length === 0 ? (
                 <option value="">Cadastre uma conta primeiro</option>
               ) : destinoOptions.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}

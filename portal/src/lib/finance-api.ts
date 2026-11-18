@@ -22,7 +22,7 @@ export interface Lancamento {
   forma_pagamento?: FormaPagamento
   litros?: number | null
   odometro?: number | null
-  origem?: "manual" | "ofx" | "drive_xlsx"
+  origem?: "manual" | "ofx" | "drive_xlsx" | "xlsx" | "csv" | "pdf"
   ofx_fitid?: string | null
 }
 

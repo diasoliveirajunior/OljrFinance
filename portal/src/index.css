@@ -1092,6 +1092,22 @@ html[data-theme="light"] .ff-app {
 }
 .ff-inline-hint strong { color: var(--ff-fg); font-weight: 600; }
 
+.ff-card-warn {
+  margin-top: 6px;
+  padding: 6px 10px; border-radius: 6px;
+  background: rgba(245, 158, 11, 0.12); color: #f59e0b;
+  font-size: 11px; font-weight: 500;
+}
+.ff-empty-add {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px; border-radius: 8px;
+  background: transparent; border: 1px dashed var(--ff-border-strong);
+  color: var(--ff-fg-muted); font-family: inherit;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  align-self: flex-start;
+}
+.ff-empty-add:hover { color: var(--ff-brand); border-color: var(--ff-brand); background: var(--ff-surface); }
+
 .ff-filters {
   display: flex; gap: 6px; flex-wrap: wrap;
 }

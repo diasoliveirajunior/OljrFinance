@@ -35,14 +35,21 @@ async function faturaAtual(email, cartaoId, diaFechamento) {
         .where('email', '==', email)
         .where('cartao_id', '==', cartaoId)
         .get();
-    let total = 0;
+    let fatura = 0, limiteComprometido = 0;
     snap.forEach(d => {
         const l = d.data();
-        if (l.tipo === 'despesa' && l.data >= ini && l.data <= fim) {
-            total += Number(l.valor) || 0;
+        if (l.tipo === 'despesa') {
+            const v = Number(l.valor) || 0;
+            limiteComprometido += v;
+            if (l.data >= ini && l.data <= fim) fatura += v;
         }
     });
-    return { fatura: Math.round(total * 100) / 100, ciclo_ini: ini, ciclo_fim: fim };
+    return {
+        fatura: Math.round(fatura * 100) / 100,
+        limite_comprometido: Math.round(limiteComprometido * 100) / 100,
+        ciclo_ini: ini,
+        ciclo_fim: fim
+    };
 }
 
 exports.listar = async (req, res) => {
@@ -54,19 +61,26 @@ exports.listar = async (req, res) => {
         for (const d of snap.docs) {
             const data = d.data();
             const fat = await faturaAtual(email, d.id, data.dia_fechamento);
+            const divida_inicial = Number(data.divida_inicial) || 0;
+            const usado = fat.limite_comprometido + divida_inicial;
+            const limite = Number(data.limite) || 0;
+            const disponivel = Math.max(0, limite - usado);
             cartoes.push({
                 id: d.id,
                 nome: data.nome,
                 bandeira: data.bandeira,
                 banco: data.banco || null,
-                limite: Number(data.limite) || 0,
+                limite,
+                divida_inicial,
                 dia_fechamento: data.dia_fechamento,
                 dia_vencimento: data.dia_vencimento,
                 cor: data.cor || '#64748b',
                 fatura_atual: fat.fatura,
+                limite_usado: Math.round(usado * 100) / 100,
+                limite_disponivel: Math.round(disponivel * 100) / 100,
                 ciclo_ini: fat.ciclo_ini,
                 ciclo_fim: fat.ciclo_fim,
-                percentual: data.limite > 0 ? Math.round((fat.fatura / data.limite) * 100) : 0
+                percentual: limite > 0 ? Math.round((usado / limite) * 100) : 0
             });
         }
         cartoes.sort((a, b) => a.nome.localeCompare(b.nome));
@@ -83,11 +97,12 @@ exports.criar = async (req, res) => {
         const bandeira = normalize(req.body.bandeira).toLowerCase();
         const banco = normalize(req.body.banco);
         const limite = num(req.body.limite);
+        const divida_inicial = num(req.body.divida_inicial);
         const dia_fechamento = int(req.body.dia_fechamento, 1, 31);
         const dia_vencimento = int(req.body.dia_vencimento, 1, 31);
         const cor = normalize(req.body.cor) || '#64748b';
 
-        if (!nome) return res.status(400).json({ error: 'Nome e obrigatorio.' });
+        if (!nome) return res.status(400).json({ error: 'Apelido do cartao e obrigatorio.' });
         if (!BANDEIRAS_VALIDAS.includes(bandeira)) {
             return res.status(400).json({ error: 'Bandeira invalida. Use ' + BANDEIRAS_VALIDAS.join('/') + '.' });
         }
@@ -96,11 +111,12 @@ exports.criar = async (req, res) => {
 
         const ref = await admin.firestore().collection('finance_cartoes').add({
             email: req.user.email,
-            nome, bandeira, banco: banco || null, limite, dia_fechamento, dia_vencimento, cor,
+            nome, bandeira, banco: banco || null, limite, divida_inicial,
+            dia_fechamento, dia_vencimento, cor,
             criado_em: admin.firestore.FieldValue.serverTimestamp(),
             criado_por: req.user.email
         });
-        res.status(201).json({ ok: true, id: ref.id, nome, bandeira, limite, dia_fechamento, dia_vencimento, cor, fatura_atual: 0 });
+        res.status(201).json({ ok: true, id: ref.id, nome, bandeira, limite, divida_inicial, dia_fechamento, dia_vencimento, cor, fatura_atual: 0 });
     } catch (e) {
         console.error('cartoes.criar:', e);
         res.status(500).json({ error: 'Erro ao criar cartao.' });
@@ -124,6 +140,7 @@ exports.atualizar = async (req, res) => {
             patch.bandeira = b;
         }
         if (req.body.limite !== undefined) patch.limite = num(req.body.limite);
+        if (req.body.divida_inicial !== undefined) patch.divida_inicial = num(req.body.divida_inicial);
         if (req.body.dia_fechamento !== undefined) {
             const d = int(req.body.dia_fechamento, 1, 31);
             if (d == null) return res.status(400).json({ error: 'Dia de fechamento invalido.' });

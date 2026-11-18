@@ -206,56 +206,85 @@ export function PainelFinance() {
           </div>
         )}
 
-        <SecaoHead titulo="Cartões de crédito" />
-        {cartoesQ.isLoading ? <SkeletonCards /> : (
-          <div className="ff-cards-row">
-            {cartoes.map((c) => (
-              <article key={c.id} className="ff-credit-card">
-                <div className="ff-bank-card-top">
-                  <div className="ff-bank-logo" style={{ background: c.cor }}>{iniciais(c.nome)}</div>
-                  <div className="min-w-0">
-                    <div className="ff-card-name">{c.nome}</div>
-                    <div className="ff-card-type">Fecha dia {c.dia_fechamento} · vence dia {c.dia_vencimento}</div>
-                  </div>
-                </div>
-                <div className="ff-card-saldo">{fmtBRL(c.fatura_atual)}</div>
-                <div className="ff-card-meta">
-                  <span>{c.percentual}% de {fmtBRL(c.limite)}</span>
-                </div>
-                <div className="ff-limit-bar"><div className="ff-limit-fill" style={{ width: Math.min(100, c.percentual) + "%" }} /></div>
-              </article>
-            ))}
-            <button className="ff-bank-card ff-add-card" onClick={() => setCartaoAberto(true)}>
-              <Plus className="size-5" /> Novo cartão
-            </button>
-          </div>
+        {(cartoesQ.isLoading || cartoes.length > 0) && (
+          <>
+            <SecaoHead titulo="Cartões de crédito" />
+            {cartoesQ.isLoading ? <SkeletonCards /> : (
+              <div className="ff-cards-row">
+                {cartoes.map((c) => (
+                  <article key={c.id} className="ff-credit-card">
+                    <div className="ff-bank-card-top">
+                      <div className="ff-bank-logo" style={{ background: c.cor }}>{iniciais(c.nome)}</div>
+                      <div className="min-w-0">
+                        <div className="ff-card-name">{c.nome}</div>
+                        <div className="ff-card-type">
+                          {c.banco ? c.banco + " · " : ""}Fecha dia {c.dia_fechamento} · vence dia {c.dia_vencimento}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="ff-label">Fatura aberta</div>
+                      <div className="ff-card-saldo">{fmtBRL(c.fatura_atual)}</div>
+                    </div>
+                    <div className="ff-card-meta">
+                      <span>Limite livre: <strong>{fmtBRL(c.limite_disponivel)}</strong></span>
+                      <span>{c.percentual}% usado</span>
+                    </div>
+                    <div className="ff-limit-bar"><div className="ff-limit-fill" style={{ width: Math.min(100, c.percentual) + "%" }} /></div>
+                    {c.divida_inicial > 0 && (
+                      <div className="ff-card-warn">
+                        {fmtBRL(c.divida_inicial)} já comprometidos por dívidas antigas
+                      </div>
+                    )}
+                  </article>
+                ))}
+                <button className="ff-bank-card ff-add-card" onClick={() => setCartaoAberto(true)}>
+                  <Plus className="size-5" /> Novo cartão
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {!cartoesQ.isLoading && cartoes.length === 0 && (
+          <button className="ff-empty-add" onClick={() => setCartaoAberto(true)}>
+            <CreditCard className="size-4" /> Adicionar cartão de crédito
+          </button>
         )}
 
-        <SecaoHead titulo="Investimentos" />
-        {invQ.isLoading ? <SkeletonCards /> : (
-          <div className="ff-cards-row">
-            {investimentos.map((i) => (
-              <article key={i.id} className="ff-bank-card">
-                <div className="ff-bank-card-top">
-                  <div className="ff-bank-logo" style={{ background: i.cor }}>{iniciais(i.nome)}</div>
-                  <div className="min-w-0">
-                    <div className="ff-card-name">{i.nome}</div>
-                    <div className="ff-card-type">{labelInvestimento(i.tipo)}{i.instituicao ? " · " + i.instituicao : ""}</div>
-                  </div>
-                </div>
-                <div className="ff-card-saldo">{fmtBRL(i.valor_atual)}</div>
-                <div className="ff-card-meta">
-                  <span>Aplicado {fmtBRL(i.valor_aplicado)}</span>
-                  <span className={i.rentabilidade_real >= 0 ? "ff-yield-pill" : "ff-yield-pill ff-neg"}>
-                    {i.rentabilidade_real >= 0 ? "+ " : ""}{i.rentabilidade_real.toFixed(1)}%
-                  </span>
-                </div>
-              </article>
-            ))}
-            <button className="ff-bank-card ff-add-card" onClick={() => setInvestAberto(true)}>
-              <Plus className="size-5" /> Novo investimento
-            </button>
-          </div>
+        {(invQ.isLoading || investimentos.length > 0) && (
+          <>
+            <SecaoHead titulo="Investimentos" />
+            {invQ.isLoading ? <SkeletonCards /> : (
+              <div className="ff-cards-row">
+                {investimentos.map((i) => (
+                  <article key={i.id} className="ff-bank-card">
+                    <div className="ff-bank-card-top">
+                      <div className="ff-bank-logo" style={{ background: i.cor }}>{iniciais(i.nome)}</div>
+                      <div className="min-w-0">
+                        <div className="ff-card-name">{i.nome}</div>
+                        <div className="ff-card-type">{labelInvestimento(i.tipo)}{i.instituicao ? " · " + i.instituicao : ""}</div>
+                      </div>
+                    </div>
+                    <div className="ff-card-saldo">{fmtBRL(i.valor_atual)}</div>
+                    <div className="ff-card-meta">
+                      <span>Aplicado {fmtBRL(i.valor_aplicado)}</span>
+                      <span className={i.rentabilidade_real >= 0 ? "ff-yield-pill" : "ff-yield-pill ff-neg"}>
+                        {i.rentabilidade_real >= 0 ? "+ " : ""}{i.rentabilidade_real.toFixed(1)}%
+                      </span>
+                    </div>
+                  </article>
+                ))}
+                <button className="ff-bank-card ff-add-card" onClick={() => setInvestAberto(true)}>
+                  <Plus className="size-5" /> Novo investimento
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {!invQ.isLoading && investimentos.length === 0 && (
+          <button className="ff-empty-add" onClick={() => setInvestAberto(true)}>
+            <TrendingUp className="size-4" /> Adicionar investimento
+          </button>
         )}
 
         {comb && comb.abastecimentos >= 1 && (

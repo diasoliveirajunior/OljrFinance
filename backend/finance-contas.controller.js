@@ -39,10 +39,13 @@ exports.listar = async (req, res) => {
         for (const d of snap.docs) {
             const data = d.data();
             const saldo = await calcularSaldo(email, d.id, data.saldo_inicial);
+            // 'nome' legado ainda existe em registros antigos; a partir de 18/11
+            // a identificacao e 'banco' apenas, preenchido no cadastro ou herdado do nome antigo.
+            const label = data.banco || data.nome || 'Conta';
             contas.push({
                 id: d.id,
-                nome: data.nome,
-                banco: data.banco || null,
+                nome: label,
+                banco: label,
                 tipo: data.tipo,
                 cor: data.cor || '#64748b',
                 saldo_inicial: Number(data.saldo_inicial) || 0,
@@ -61,28 +64,29 @@ exports.listar = async (req, res) => {
 
 exports.criar = async (req, res) => {
     try {
-        const nome = normalize(req.body.nome);
-        const banco = normalize(req.body.banco);
+        // A partir de 18/11 o front envia apenas 'banco' como identificacao da conta.
+        // Aceita 'nome' por compatibilidade com clientes antigos.
+        const banco = normalize(req.body.banco) || normalize(req.body.nome);
         const tipo = normalize(req.body.tipo).toLowerCase();
         const cor = normalize(req.body.cor) || '#64748b';
         const saldo_inicial = num(req.body.saldo_inicial);
         const observacao = normalize(req.body.observacao);
 
-        if (!nome) return res.status(400).json({ error: 'Nome e obrigatorio.' });
+        if (!banco) return res.status(400).json({ error: 'Informe o banco/instituicao.' });
         if (!TIPOS_VALIDOS.includes(tipo)) {
             return res.status(400).json({ error: 'Tipo invalido. Use ' + TIPOS_VALIDOS.join('/') + '.' });
         }
 
         const doc = {
             email: req.user.email,
-            nome, banco: banco || null, tipo, cor,
+            nome: banco, banco, tipo, cor,
             saldo_inicial,
             observacao: observacao || null,
             criado_em: admin.firestore.FieldValue.serverTimestamp(),
             criado_por: req.user.email
         };
         const ref = await admin.firestore().collection('finance_contas').add(doc);
-        res.status(201).json({ ok: true, id: ref.id, nome, banco, tipo, cor, saldo_inicial, saldo_atual: saldo_inicial });
+        res.status(201).json({ ok: true, id: ref.id, nome: banco, banco, tipo, cor, saldo_inicial, saldo_atual: saldo_inicial });
     } catch (e) {
         console.error('contas.criar:', e);
         res.status(500).json({ error: 'Erro ao criar conta.' });

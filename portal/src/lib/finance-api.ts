@@ -55,10 +55,13 @@ export interface Cartao {
   bandeira: BandeiraCartao
   banco?: string | null
   limite: number
+  divida_inicial: number
   dia_fechamento: number
   dia_vencimento: number
   cor: string
   fatura_atual: number
+  limite_usado: number
+  limite_disponivel: number
   ciclo_ini: string
   ciclo_fim: string
   percentual: number
@@ -150,7 +153,7 @@ export function listarContas() {
 }
 
 export function criarConta(body: {
-  nome: string; banco?: string; tipo: TipoConta; cor?: string;
+  banco: string; tipo: TipoConta; cor?: string;
   saldo_inicial?: number; observacao?: string;
 }) {
   return apiFetch<{ ok: boolean; id: string }>("/api/finance/contas", {
@@ -174,7 +177,8 @@ export function listarCartoes() {
 
 export function criarCartao(body: {
   nome: string; bandeira: BandeiraCartao; banco?: string;
-  limite: number; dia_fechamento: number; dia_vencimento: number; cor?: string;
+  limite: number; divida_inicial?: number;
+  dia_fechamento: number; dia_vencimento: number; cor?: string;
 }) {
   return apiFetch<{ ok: boolean; id: string }>("/api/finance/cartoes", {
     method: "POST", body: JSON.stringify(body),

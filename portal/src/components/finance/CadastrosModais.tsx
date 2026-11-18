@@ -55,7 +55,6 @@ function SeletorCor({ valor, setValor }: { valor: string; setValor: (c: string) 
 
 export function NovaContaModal({ aberto, fechar }: { aberto: boolean; fechar: () => void }) {
   const qc = useQueryClient()
-  const [nome, setNome] = useState("")
   const [banco, setBanco] = useState("")
   const [tipo, setTipo] = useState<TipoConta>("corrente")
   const [cor, setCor] = useState("#10b981")
@@ -64,25 +63,22 @@ export function NovaContaModal({ aberto, fechar }: { aberto: boolean; fechar: ()
 
   useEffect(() => {
     if (!aberto) return
-    setNome(""); setBanco(""); setTipo("corrente"); setCor("#10b981"); setSaldoInicial(""); setErro(null)
+    setBanco(""); setTipo("corrente"); setCor("#10b981"); setSaldoInicial(""); setErro(null)
   }, [aberto])
 
   const mut = useMutation({
     mutationFn: () => criarConta({
-      nome, banco: banco || undefined, tipo, cor,
+      banco: banco.trim(), tipo, cor,
       saldo_inicial: saldoInicial ? num(saldoInicial) : 0,
     }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["finance"] })
-      fechar()
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance"] }); fechar() },
     onError: (e) => setErro((e as Error).message),
   })
 
   function submeter(e: FormEvent) {
     e.preventDefault()
     setErro(null)
-    if (!nome.trim()) { setErro("Dê um nome para a conta."); return }
+    if (!banco.trim()) { setErro("Informe o banco."); return }
     mut.mutate()
   }
   if (!aberto) return null
@@ -90,12 +86,8 @@ export function NovaContaModal({ aberto, fechar }: { aberto: boolean; fechar: ()
     <Shell titulo="Nova conta" fechar={fechar}>
       <form onSubmit={submeter} className="ff-modal-form">
         <div className="ff-field ff-field--full">
-          <label>Nome</label>
-          <input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nubank, Itaú principal, Carteira…" required />
-        </div>
-        <div className="ff-field">
-          <label>Banco (opcional)</label>
-          <input value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="Nubank, Itaú…" />
+          <label>Banco / instituição</label>
+          <input autoFocus value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="Nubank, Itaú, Inter, Carteira…" required />
         </div>
         <div className="ff-field">
           <label>Tipo</label>
@@ -106,7 +98,7 @@ export function NovaContaModal({ aberto, fechar }: { aberto: boolean; fechar: ()
             <option value="outra">Outra</option>
           </select>
         </div>
-        <div className="ff-field ff-field--full">
+        <div className="ff-field">
           <label>Saldo inicial</label>
           <input inputMode="decimal" value={saldoInicial} onChange={(e) => setSaldoInicial(e.target.value)} placeholder="0,00" />
         </div>
@@ -129,6 +121,7 @@ export function NovoCartaoModal({ aberto, fechar }: { aberto: boolean; fechar: (
   const [banco, setBanco] = useState("")
   const [bandeira, setBandeira] = useState<BandeiraCartao>("mastercard")
   const [limite, setLimite] = useState("")
+  const [dividaInicial, setDividaInicial] = useState("")
   const [diaFech, setDiaFech] = useState("28")
   const [diaVenc, setDiaVenc] = useState("5")
   const [cor, setCor] = useState("#8b5cf6")
@@ -136,14 +129,16 @@ export function NovoCartaoModal({ aberto, fechar }: { aberto: boolean; fechar: (
 
   useEffect(() => {
     if (!aberto) return
-    setNome(""); setBanco(""); setBandeira("mastercard"); setLimite("")
+    setNome(""); setBanco(""); setBandeira("mastercard"); setLimite(""); setDividaInicial("")
     setDiaFech("28"); setDiaVenc("5"); setCor("#8b5cf6"); setErro(null)
   }, [aberto])
 
   const mut = useMutation({
     mutationFn: () => criarCartao({
       nome, banco: banco || undefined, bandeira,
-      limite: num(limite), dia_fechamento: Number(diaFech),
+      limite: num(limite),
+      divida_inicial: dividaInicial ? num(dividaInicial) : 0,
+      dia_fechamento: Number(diaFech),
       dia_vencimento: Number(diaVenc), cor,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["finance"] }); fechar() },
@@ -153,7 +148,7 @@ export function NovoCartaoModal({ aberto, fechar }: { aberto: boolean; fechar: (
   function submeter(e: FormEvent) {
     e.preventDefault()
     setErro(null)
-    if (!nome.trim()) { setErro("Dê um nome ao cartão."); return }
+    if (!nome.trim()) { setErro("Dê um apelido ao cartão (ex: Combustível, Comida)."); return }
     if (!limite || num(limite) <= 0) { setErro("Informe o limite do cartão."); return }
     mut.mutate()
   }
@@ -162,8 +157,8 @@ export function NovoCartaoModal({ aberto, fechar }: { aberto: boolean; fechar: (
     <Shell titulo="Novo cartão de crédito" fechar={fechar}>
       <form onSubmit={submeter} className="ff-modal-form">
         <div className="ff-field ff-field--full">
-          <label>Nome</label>
-          <input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nubank Mastercard, Itaú Click…" required />
+          <label>Apelido</label>
+          <input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Cartão combustível, Cartão comida, Nubank principal…" required />
         </div>
         <div className="ff-field">
           <label>Banco (opcional)</label>
@@ -180,9 +175,18 @@ export function NovoCartaoModal({ aberto, fechar }: { aberto: boolean; fechar: (
             <option value="outra">Outra</option>
           </select>
         </div>
-        <div className="ff-field ff-field--full">
+        <div className="ff-field">
           <label>Limite total</label>
           <input inputMode="decimal" value={limite} onChange={(e) => setLimite(e.target.value)} placeholder="0,00" required />
+        </div>
+        <div className="ff-field">
+          <label>Já comprometido</label>
+          <input inputMode="decimal" value={dividaInicial} onChange={(e) => setDividaInicial(e.target.value)} placeholder="0,00" />
+        </div>
+        <div className="ff-field ff-field--full">
+          <p className="ff-inline-hint">
+            "Já comprometido" é a parcela do limite que já está comida por dívidas antigas e <strong>não</strong> aparece na fatura mensal. Deixa 0 se o cartão está limpo.
+          </p>
         </div>
         <div className="ff-field">
           <label>Fecha dia</label>

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Bell, ChevronRight, CreditCard, FileInput, Fuel, Home, Landmark, LayoutDashboard, LineChart,
-  List, LogOut, Menu, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, User, Wallet,
+  List, LogOut, Menu, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, Wallet,
 } from "lucide-react"
 import type { Cartao, Conta, Investimento } from "@/lib/finance-api"
 import { useAuth } from "@/contexts/auth"
@@ -196,7 +196,7 @@ export function PainelFinance() {
             <button
               className="ff-topbar-avatar"
               onClick={() => setPerfilAberto(true)}
-              title={`Perfil · ${nome}`}
+              title={`${nome} · ${papel}`}
               aria-label="Perfil e senha"
             >
               {firebaseUser?.photoURL ? (

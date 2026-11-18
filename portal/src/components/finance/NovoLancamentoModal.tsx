@@ -9,10 +9,10 @@ import {
 
 const CATEGORIAS_DESPESA = [
   "Mercado", "Combustível", "Transporte", "Moradia", "Saúde",
-  "Educação", "Lazer", "Vestuário", "Assinaturas", "Pets", "Outros",
+  "Educação", "Lazer", "Vestuário", "Assinaturas", "Pets",
 ]
 const CATEGORIAS_RECEITA = [
-  "Salário", "Freelance", "Rendimento", "Reembolso", "Presente", "Outros",
+  "Salário", "Freelance", "Rendimento", "Reembolso", "Presente",
 ]
 
 const FORMAS: { valor: FormaPagamento; label: string }[] = [

@@ -133,7 +133,6 @@ function ContaForm({ aberto, fechar, editar }: {
             { v: "corrente", label: "Conta corrente" },
             { v: "poupanca", label: "Poupança" },
             { v: "carteira", label: "Carteira (dinheiro)" },
-            { v: "outra", label: "Outra" },
           ]} />
         <div className="ff-field">
           <label>Saldo inicial</label>
@@ -233,7 +232,6 @@ function CartaoForm({ aberto, fechar, editar }: {
             { v: "elo", label: "Elo" },
             { v: "amex", label: "American Express" },
             { v: "hipercard", label: "Hipercard" },
-            { v: "outra", label: "Outra" },
           ]} />
         <div className="ff-field">
           <label>Limite total</label>
@@ -353,7 +351,6 @@ function InvestimentoForm({ aberto, fechar, editar }: {
             { v: "fii", label: "FII" },
             { v: "cripto", label: "Cripto" },
             { v: "poupanca", label: "Poupança" },
-            { v: "outro", label: "Outro" },
           ]} />
         <div className="ff-field">
           <label>Instituição</label>

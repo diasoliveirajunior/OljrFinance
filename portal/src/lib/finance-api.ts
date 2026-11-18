@@ -56,6 +56,7 @@ export interface Cartao {
   banco?: string | null
   limite: number
   divida_inicial: number
+  fatura_inicial: number
   dia_fechamento: number
   dia_vencimento: number
   cor: string
@@ -220,7 +221,7 @@ export function listarCartoes() {
 
 export function criarCartao(body: {
   nome: string; bandeira: BandeiraCartao; banco?: string;
-  limite: number; divida_inicial?: number;
+  limite: number; divida_inicial?: number; fatura_inicial?: number;
   dia_fechamento: number; dia_vencimento: number; cor?: string;
 }) {
   return apiFetch<{ ok: boolean; id: string }>("/api/finance/cartoes", {

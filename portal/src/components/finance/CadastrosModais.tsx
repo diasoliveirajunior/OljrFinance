@@ -185,6 +185,7 @@ export function CartaoModal({ aberto, fechar, editar }: {
   const [banco, setBanco] = useState("")
   const [bandeira, setBandeira] = useState<string>("mastercard")
   const [limite, setLimite] = useState("")
+  const [faturaInicial, setFaturaInicial] = useState("")
   const [dividaInicial, setDividaInicial] = useState("")
   const [diaFech, setDiaFech] = useState("28")
   const [diaVenc, setDiaVenc] = useState("5")
@@ -196,11 +197,13 @@ export function CartaoModal({ aberto, fechar, editar }: {
     if (editar) {
       setNome(editar.nome); setBanco(editar.banco || ""); setBandeira(editar.bandeira)
       setLimite(editar.limite ? editar.limite.toString().replace(".", ",") : "")
+      setFaturaInicial(editar.fatura_inicial ? editar.fatura_inicial.toString().replace(".", ",") : "")
       setDividaInicial(editar.divida_inicial ? editar.divida_inicial.toString().replace(".", ",") : "")
       setDiaFech(String(editar.dia_fechamento)); setDiaVenc(String(editar.dia_vencimento))
       setCor(editar.cor)
     } else {
-      setNome(""); setBanco(""); setBandeira("mastercard"); setLimite(""); setDividaInicial("")
+      setNome(""); setBanco(""); setBandeira("mastercard"); setLimite("")
+      setFaturaInicial(""); setDividaInicial("")
       setDiaFech("28"); setDiaVenc("5"); setCor("#8b5cf6")
     }
     setErro(null)
@@ -210,7 +213,9 @@ export function CartaoModal({ aberto, fechar, editar }: {
     mutationFn: () => {
       const body = {
         nome, banco: banco || undefined, bandeira: bandeira as BandeiraCartao,
-        limite: num(limite), divida_inicial: dividaInicial ? num(dividaInicial) : 0,
+        limite: num(limite),
+        fatura_inicial: faturaInicial ? num(faturaInicial) : 0,
+        divida_inicial: dividaInicial ? num(dividaInicial) : 0,
         dia_fechamento: Number(diaFech), dia_vencimento: Number(diaVenc), cor,
       }
       return editar ? atualizarCartao(editar.id, body as unknown as Partial<Cartao>) : criarCartao(body)
@@ -259,12 +264,18 @@ export function CartaoModal({ aberto, fechar, editar }: {
           <input inputMode="decimal" value={limite} onChange={(e) => setLimite(e.target.value)} placeholder="0,00" required />
         </div>
         <div className="ff-field">
+          <label>Fatura em aberto</label>
+          <input inputMode="decimal" value={faturaInicial} onChange={(e) => setFaturaInicial(e.target.value)} placeholder="0,00" />
+        </div>
+        <div className="ff-field">
           <label>Já comprometido</label>
           <input inputMode="decimal" value={dividaInicial} onChange={(e) => setDividaInicial(e.target.value)} placeholder="0,00" />
         </div>
         <div className="ff-field ff-field--full">
           <p className="ff-inline-hint">
-            "Já comprometido" é a parcela do limite consumida por dívidas antigas que <strong>não</strong> aparecem na fatura mensal. Deixa 0 se o cartão está limpo.
+            <strong>Fatura em aberto</strong>: valor que já está na fatura atual mas você ainda não lançou — à medida que cadastrar despesas no cartão, elas <strong>somam</strong> nesse valor.
+            <br />
+            <strong>Já comprometido</strong>: pedaço do limite consumido por dívidas antigas que <strong>não</strong> aparecem na fatura mensal (ex: parcelamentos antigos). Deixa 0 se o cartão está limpo.
           </p>
         </div>
         <div className="ff-field">

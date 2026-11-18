@@ -36,21 +36,23 @@ function cicloAtual(hoje, diaFechamento) {
     return [ini.toISOString().slice(0, 10), fim.toISOString().slice(0, 10)];
 }
 
-async function faturaAtual(email, cartaoId, diaFechamento) {
+async function faturaAtual(email, cartaoId, diaFechamento, faturaInicial) {
     const [ini, fim] = cicloAtual(new Date(), diaFechamento);
     const snap = await admin.firestore().collection('finance_lancamentos')
         .where('email', '==', email)
         .where('cartao_id', '==', cartaoId)
         .get();
-    let fatura = 0, limiteComprometido = 0;
+    let gastosCiclo = 0, limiteComprometido = 0;
     snap.forEach(d => {
         const l = d.data();
         if (l.tipo === 'despesa') {
             const v = Number(l.valor) || 0;
             limiteComprometido += v;
-            if (l.data >= ini && l.data <= fim) fatura += v;
+            if (l.data >= ini && l.data <= fim) gastosCiclo += v;
         }
     });
+    // Fatura exibida = gastos nesse ciclo + fatura inicial em aberto no cadastro.
+    const fatura = gastosCiclo + (Number(faturaInicial) || 0);
     return {
         fatura: Math.round(fatura * 100) / 100,
         limite_comprometido: Math.round(limiteComprometido * 100) / 100,
@@ -67,9 +69,11 @@ exports.listar = async (req, res) => {
         const cartoes = [];
         for (const d of snap.docs) {
             const data = d.data();
-            const fat = await faturaAtual(email, d.id, data.dia_fechamento);
+            const fatura_inicial = Number(data.fatura_inicial) || 0;
+            const fat = await faturaAtual(email, d.id, data.dia_fechamento, fatura_inicial);
             const divida_inicial = Number(data.divida_inicial) || 0;
-            const usado = fat.limite_comprometido + divida_inicial;
+            // Limite usado = divida antiga (sempre) + fatura atual (ciclo + inicial).
+            const usado = fat.limite_comprometido + fatura_inicial + divida_inicial;
             const limite = Number(data.limite) || 0;
             const disponivel = Math.max(0, limite - usado);
             cartoes.push({
@@ -79,6 +83,7 @@ exports.listar = async (req, res) => {
                 banco: data.banco || null,
                 limite,
                 divida_inicial,
+                fatura_inicial,
                 dia_fechamento: data.dia_fechamento,
                 dia_vencimento: data.dia_vencimento,
                 cor: data.cor || '#64748b',
@@ -105,6 +110,7 @@ exports.criar = async (req, res) => {
         const banco = normalize(req.body.banco);
         const limite = num(req.body.limite);
         const divida_inicial = num(req.body.divida_inicial);
+        const fatura_inicial = num(req.body.fatura_inicial);
         const dia_fechamento = int(req.body.dia_fechamento, 1, 31);
         const dia_vencimento = int(req.body.dia_vencimento, 1, 31);
         const cor = normalize(req.body.cor) || '#64748b';
@@ -116,12 +122,12 @@ exports.criar = async (req, res) => {
 
         const ref = await admin.firestore().collection('finance_cartoes').add({
             email: req.user.email,
-            nome, bandeira, banco: banco || null, limite, divida_inicial,
+            nome, bandeira, banco: banco || null, limite, divida_inicial, fatura_inicial,
             dia_fechamento, dia_vencimento, cor,
             criado_em: admin.firestore.FieldValue.serverTimestamp(),
             criado_por: req.user.email
         });
-        res.status(201).json({ ok: true, id: ref.id, nome, bandeira, limite, divida_inicial, dia_fechamento, dia_vencimento, cor, fatura_atual: 0 });
+        res.status(201).json({ ok: true, id: ref.id, nome, bandeira, limite, divida_inicial, fatura_inicial, dia_fechamento, dia_vencimento, cor, fatura_atual: fatura_inicial });
     } catch (e) {
         console.error('cartoes.criar:', e);
         res.status(500).json({ error: 'Erro ao criar cartao.' });
@@ -146,6 +152,7 @@ exports.atualizar = async (req, res) => {
         }
         if (req.body.limite !== undefined) patch.limite = num(req.body.limite);
         if (req.body.divida_inicial !== undefined) patch.divida_inicial = num(req.body.divida_inicial);
+        if (req.body.fatura_inicial !== undefined) patch.fatura_inicial = num(req.body.fatura_inicial);
         if (req.body.dia_fechamento !== undefined) {
             const d = int(req.body.dia_fechamento, 1, 31);
             if (d == null) return res.status(400).json({ error: 'Dia de fechamento invalido.' });

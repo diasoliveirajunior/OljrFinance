@@ -1003,6 +1003,32 @@ html[data-theme="light"] .ff-app {
   padding: 20px 22px 22px;
   font-family: "Montserrat", ui-sans-serif, system-ui, sans-serif;
 }
+.ff-modal--wide { max-width: 640px; }
+.ff-dropzone {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 40px 20px;
+  border: 2px dashed var(--ff-border-strong);
+  border-radius: var(--ff-radius);
+  background: var(--ff-surface-2);
+  text-align: center;
+}
+.ff-dropzone-title { font-weight: 600; font-size: 14px; margin: 0; }
+.ff-dropzone-hint { font-size: 12px; color: var(--ff-fg-muted); margin: 0 0 8px; }
+.ff-file-chip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: var(--ff-surface-2);
+  border: 1px solid var(--ff-border);
+  border-radius: 8px; font-size: 13px;
+}
+.ff-file-chip span:first-of-type { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-file-size { font-size: 11px; color: var(--ff-fg-muted); font-variant-numeric: tabular-nums; }
+.ff-ofx-preview {
+  max-height: 300px; overflow-y: auto;
+  background: var(--ff-surface-2);
+  border: 1px solid var(--ff-border);
+  border-radius: 8px;
+}
 .ff-modal-head {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 14px;

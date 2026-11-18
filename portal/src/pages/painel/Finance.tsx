@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  Bell, ChevronRight, CreditCard, Fuel, Landmark, LayoutDashboard, LineChart,
+  Bell, ChevronRight, CreditCard, FileInput, Fuel, Landmark, LayoutDashboard, LineChart,
   List, LogOut, Moon, Plus, Sun, TrendingUp, Trash2, Wallet,
 } from "lucide-react"
 import { useAuth } from "@/contexts/auth"
@@ -10,6 +10,7 @@ import { NovoLancamentoModal } from "@/components/finance/NovoLancamentoModal"
 import {
   NovaContaModal, NovoCartaoModal, NovoInvestimentoModal,
 } from "@/components/finance/CadastrosModais"
+import { ImportarOFXModal } from "@/components/finance/ImportarOFXModal"
 import {
   fmtBRL, fmtDataCurta,
   getCombustivel, getPatrimonio, listarCartoes, listarContas,
@@ -50,6 +51,7 @@ export function PainelFinance() {
   const [contaAberta, setContaAberta] = useState(false)
   const [cartaoAberto, setCartaoAberto] = useState(false)
   const [investAberto, setInvestAberto] = useState(false)
+  const [importAberto, setImportAberto] = useState(false)
   const [filtroForma, setFiltroForma] = useState<FormaPagamento | "todas">("todas")
 
   const patrimonioQ = useQuery({ queryKey: ["finance", "patrimonio"], queryFn: getPatrimonio })
@@ -115,6 +117,9 @@ export function PainelFinance() {
           <button className="ff-nav-item"><CreditCard className="size-4" /> Cartões</button>
           <button className="ff-nav-item"><TrendingUp className="size-4" /> Investimentos</button>
           <button className="ff-nav-item"><List className="size-4" /> Movimentações</button>
+          <button className="ff-nav-item" onClick={() => setImportAberto(true)}>
+            <FileInput className="size-4" /> Importar extrato
+          </button>
           <button className="ff-nav-item"><LineChart className="size-4" /> Relatórios</button>
         </nav>
         <div className="ff-sidebar-footer">
@@ -395,6 +400,12 @@ export function PainelFinance() {
       <NovaContaModal aberto={contaAberta} fechar={() => setContaAberta(false)} />
       <NovoCartaoModal aberto={cartaoAberto} fechar={() => setCartaoAberto(false)} />
       <NovoInvestimentoModal aberto={investAberto} fechar={() => setInvestAberto(false)} />
+      <ImportarOFXModal
+        aberto={importAberto}
+        fechar={() => setImportAberto(false)}
+        contas={contas}
+        cartoes={cartoes}
+      />
     </div>
   )
 }

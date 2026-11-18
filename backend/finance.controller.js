@@ -134,12 +134,22 @@ function parseOfx(content) {
     return transacoes;
 }
 
-// POST /api/finance/importar-ofx  { ofxContent: string, banco?: string }
+// POST /api/finance/importar-ofx
+// { ofxContent: string, banco?: string, conta_id?: string, cartao_id?: string, preview_only?: boolean }
+// Se preview_only=true, parseia e retorna transacoes sem gravar nada.
+// conta_id e cartao_id sao mutuamente exclusivos; todos os lancamentos criados
+// recebem o id escolhido (geralmente conta_id, cartao_id so em imports de fatura).
 exports.importarOfx = async (req, res) => {
     try {
         const email = req.user.email;
         const ofxContent = String(req.body.ofxContent || '');
         const banco = String(req.body.banco || 'Banco').trim().slice(0, 60);
+        const conta_id = String(req.body.conta_id || '').trim() || null;
+        const cartao_id = String(req.body.cartao_id || '').trim() || null;
+        const preview_only = req.body.preview_only === true;
+        if (conta_id && cartao_id) {
+            return res.status(400).json({ error: 'Escolha uma conta OU um cartão, não ambos.' });
+        }
 
         if (!ofxContent || ofxContent.length < 50) {
             return res.status(400).json({ error: 'Arquivo OFX vazio ou inválido.' });
@@ -154,10 +164,32 @@ exports.importarOfx = async (req, res) => {
         }
 
         const db = admin.firestore();
-        let importadas = 0, duplicadas = 0;
 
+        // Modo preview: so retorna lista parseada, nao grava.
+        if (preview_only) {
+            return res.json({
+                ok: true,
+                preview_only: true,
+                totalNoArquivo: transacoes.length,
+                preview: transacoes.slice(0, 25).map(t => ({
+                    fitid: t.fitid, data: t.data, descricao: t.descricao,
+                    valor: t.valor, tipo: t.tipo, categoria: t.categoria
+                }))
+            });
+        }
+
+        // Valida posse do destino antes de gravar.
+        if (conta_id) {
+            const c = await db.collection('finance_contas').doc(conta_id).get();
+            if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Conta inválida.' });
+        }
+        if (cartao_id) {
+            const c = await db.collection('finance_cartoes').doc(cartao_id).get();
+            if (!c.exists || c.data().email !== email) return res.status(400).json({ error: 'Cartão inválido.' });
+        }
+
+        let importadas = 0, duplicadas = 0;
         for (const tx of transacoes) {
-            // Dedup por (email + ofx_fitid)
             const dup = await db.collection('finance_lancamentos')
                 .where('email', '==', email)
                 .where('ofx_fitid', '==', tx.fitid)
@@ -171,6 +203,8 @@ exports.importarOfx = async (req, res) => {
                 categoria: tx.categoria,
                 valor: tx.valor,
                 tipo: tx.tipo,
+                conta_id, cartao_id,
+                forma_pagamento: cartao_id ? 'credito' : 'extrato',
                 origem: 'ofx',
                 ofx_fitid: tx.fitid,
                 ofx_banco: banco,
@@ -180,17 +214,14 @@ exports.importarOfx = async (req, res) => {
             importadas++;
         }
 
-        // Últimas 5 transações importadas pra preview no frontend.
-        const preview = transacoes.slice(0, 5).map(t => ({
-            data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, categoria: t.categoria
-        }));
-
         res.json({
             ok: true,
             importadas: importadas,
             duplicadas: duplicadas,
             totalNoArquivo: transacoes.length,
-            preview: preview
+            preview: transacoes.slice(0, 5).map(t => ({
+                data: t.data, descricao: t.descricao, valor: t.valor, tipo: t.tipo, categoria: t.categoria
+            }))
         });
     } catch (e) {
         console.error('finance.importarOfx:', e);

@@ -148,6 +148,32 @@ export function getCombustivel() {
   return apiFetch<Combustivel>("/api/finance/combustivel")
 }
 
+export interface OfxPreview {
+  fitid: string
+  data: string
+  descricao: string
+  valor: number
+  tipo: TipoLancamento
+  categoria: string
+}
+
+export function importarOfx(body: {
+  ofxContent: string
+  banco?: string
+  conta_id?: string | null
+  cartao_id?: string | null
+  preview_only?: boolean
+}) {
+  return apiFetch<{
+    ok: boolean
+    preview_only?: boolean
+    importadas?: number
+    duplicadas?: number
+    totalNoArquivo: number
+    preview: OfxPreview[]
+  }>("/api/finance/importar-ofx", { method: "POST", body: JSON.stringify(body) })
+}
+
 export function listarContas() {
   return apiFetch<{ contas: Conta[] }>("/api/finance/contas")
 }

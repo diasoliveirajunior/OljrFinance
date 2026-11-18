@@ -11,7 +11,7 @@ import { NovoLancamentoModal } from "@/components/finance/NovoLancamentoModal"
 import {
   CartaoModal, ContaModal, InvestimentoModal,
 } from "@/components/finance/CadastrosModais"
-import { ImportarOFXModal } from "@/components/finance/ImportarOFXModal"
+import { ImportarExtratoModal } from "@/components/finance/ImportarExtratoModal"
 import { PreferenciasPainelModal } from "@/components/finance/PreferenciasPainelModal"
 import { PerfilModal } from "@/components/finance/PerfilModal"
 import { HomeFinance } from "@/components/finance/HomeFinance"
@@ -471,7 +471,7 @@ export function PainelFinance() {
       <ContaModal aberto={contaAberta} fechar={() => setContaAberta(false)} editar={contaEdit} />
       <CartaoModal aberto={cartaoAberto} fechar={() => setCartaoAberto(false)} editar={cartaoEdit} />
       <InvestimentoModal aberto={investAberto} fechar={() => setInvestAberto(false)} editar={investEdit} />
-      <ImportarOFXModal
+      <ImportarExtratoModal
         aberto={importAberto}
         fechar={() => setImportAberto(false)}
         contas={contas}

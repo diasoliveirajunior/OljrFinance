@@ -10,7 +10,7 @@ import {
 } from "echarts/components"
 import { CanvasRenderer } from "echarts/renderers"
 import type { EChartsCoreOption, ECharts as ECInstance } from "echarts/core"
-import { useTheme } from "@/components/theme-provider"
+import { useTheme } from "@/hooks/useAppTheme"
 
 // Registro único (tree-shaken). Adicionar charts/components aqui se precisar.
 echarts.use([
@@ -69,7 +69,7 @@ export function ECharts({
   const ref = useRef<HTMLDivElement>(null)
   const inst = useRef<ECInstance | null>(null)
   const cbRef = useRef(onItemClick)
-  cbRef.current = onItemClick
+  useEffect(() => { cbRef.current = onItemClick }, [onItemClick])
 
   // Detecta tema atual (light/dark) — usado pra ajustar cor de eixos, tooltip, legend.
   const { theme } = useTheme()

@@ -7,6 +7,8 @@ const cartoesCtrl = require('./finance-cartoes.controller');
 const investCtrl = require('./finance-investimentos.controller');
 const driveCtrl = require('./finance-drive.controller');
 const storageCtrl = require('./finance-storage.controller');
+const importCtrl = require('./finance-import.controller');
+const rateLimit = require('express-rate-limit');
 
 // Retorno publico; a identidade e validada pelo state OAuth assinado.
 router.get('/storage/callback/:provider', storageCtrl.callback);
@@ -54,6 +56,9 @@ router.delete('/investimentos/:id', investCtrl.remover);
 
 // Importacao e sync
 router.post('/importar-ofx', ctrl.importarOfx);
+router.post('/importacao/previa', rateLimit({ windowMs: 60000, limit: 10,
+    message: { error: 'Aguarde um minuto antes de ler outro arquivo.' } }), importCtrl.previa);
+router.post('/importacao/confirmar', importCtrl.confirmar);
 router.get('/drive/status', driveCtrl.statusDrive);
 router.post('/drive/sincronizar', driveCtrl.sincronizarDrive);
 router.get('/storage/status', storageCtrl.status);

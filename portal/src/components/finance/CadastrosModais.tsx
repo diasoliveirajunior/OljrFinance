@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { FormEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Loader2, Trash2, X } from "lucide-react"
@@ -55,8 +55,8 @@ function SelectComOutro({
   opcoes: { v: string; label: string }[]
 }) {
   const valorNaLista = opcoes.some((o) => o.v === valor)
-  const [modoOutro, setModoOutro] = useState(!valorNaLista && !!valor)
-  useEffect(() => { setModoOutro(!valorNaLista && !!valor) }, [valor, valorNaLista])
+  const [outroEscolhido, setModoOutro] = useState(false)
+  const modoOutro = outroEscolhido || (!valorNaLista && !!valor)
   return (
     <div className="ff-field">
       <label>{label}</label>
@@ -85,28 +85,18 @@ function SelectComOutro({
 // ============================================================================
 // NOVA / EDITAR CONTA
 // ============================================================================
-export function ContaModal({ aberto, fechar, editar }: {
+export function ContaModal(props: { aberto: boolean; fechar: () => void; editar?: Conta }) {
+  return props.aberto ? <ContaForm key={props.editar?.id ?? "nova"} {...props} /> : null
+}
+function ContaForm({ aberto, fechar, editar }: {
   aberto: boolean; fechar: () => void; editar?: Conta
 }) {
   const qc = useQueryClient()
-  const [banco, setBanco] = useState("")
-  const [tipo, setTipo] = useState<string>("corrente")
-  const [cor, setCor] = useState("#10b981")
-  const [saldoInicial, setSaldoInicial] = useState("")
+  const [banco, setBanco] = useState(editar?.banco || editar?.nome || "")
+  const [tipo, setTipo] = useState<string>(editar?.tipo || "corrente")
+  const [cor, setCor] = useState(editar?.cor || "#10b981")
+  const [saldoInicial, setSaldoInicial] = useState(editar?.saldo_inicial?.toString().replace(".", ",") || "")
   const [erro, setErro] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!aberto) return
-    if (editar) {
-      setBanco(editar.banco || editar.nome)
-      setTipo(editar.tipo)
-      setCor(editar.cor)
-      setSaldoInicial(editar.saldo_inicial ? editar.saldo_inicial.toString().replace(".", ",") : "")
-    } else {
-      setBanco(""); setTipo("corrente"); setCor("#10b981"); setSaldoInicial("")
-    }
-    setErro(null)
-  }, [aberto, editar])
 
   const mut = useMutation({
     mutationFn: () => {
@@ -177,37 +167,23 @@ export function ContaModal({ aberto, fechar, editar }: {
 // ============================================================================
 // NOVO / EDITAR CARTAO
 // ============================================================================
-export function CartaoModal({ aberto, fechar, editar }: {
+export function CartaoModal(props: { aberto: boolean; fechar: () => void; editar?: Cartao }) {
+  return props.aberto ? <CartaoForm key={props.editar?.id ?? "novo"} {...props} /> : null
+}
+function CartaoForm({ aberto, fechar, editar }: {
   aberto: boolean; fechar: () => void; editar?: Cartao
 }) {
   const qc = useQueryClient()
-  const [nome, setNome] = useState("")
-  const [banco, setBanco] = useState("")
-  const [bandeira, setBandeira] = useState<string>("mastercard")
-  const [limite, setLimite] = useState("")
-  const [faturaInicial, setFaturaInicial] = useState("")
-  const [dividaInicial, setDividaInicial] = useState("")
-  const [diaFech, setDiaFech] = useState("28")
-  const [diaVenc, setDiaVenc] = useState("5")
-  const [cor, setCor] = useState("#8b5cf6")
+  const [nome, setNome] = useState(editar?.nome || "")
+  const [banco, setBanco] = useState(editar?.banco || "")
+  const [bandeira, setBandeira] = useState<string>(editar?.bandeira || "mastercard")
+  const [limite, setLimite] = useState(editar?.limite?.toString().replace(".", ",") || "")
+  const [faturaInicial, setFaturaInicial] = useState(editar?.fatura_inicial?.toString().replace(".", ",") || "")
+  const [dividaInicial, setDividaInicial] = useState(editar?.divida_inicial?.toString().replace(".", ",") || "")
+  const [diaFech, setDiaFech] = useState(String(editar?.dia_fechamento ?? 28))
+  const [diaVenc, setDiaVenc] = useState(String(editar?.dia_vencimento ?? 5))
+  const [cor, setCor] = useState(editar?.cor || "#8b5cf6")
   const [erro, setErro] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!aberto) return
-    if (editar) {
-      setNome(editar.nome); setBanco(editar.banco || ""); setBandeira(editar.bandeira)
-      setLimite(editar.limite ? editar.limite.toString().replace(".", ",") : "")
-      setFaturaInicial(editar.fatura_inicial ? editar.fatura_inicial.toString().replace(".", ",") : "")
-      setDividaInicial(editar.divida_inicial ? editar.divida_inicial.toString().replace(".", ",") : "")
-      setDiaFech(String(editar.dia_fechamento)); setDiaVenc(String(editar.dia_vencimento))
-      setCor(editar.cor)
-    } else {
-      setNome(""); setBanco(""); setBandeira("mastercard"); setLimite("")
-      setFaturaInicial(""); setDividaInicial("")
-      setDiaFech("28"); setDiaVenc("5"); setCor("#8b5cf6")
-    }
-    setErro(null)
-  }, [aberto, editar])
 
   const mut = useMutation({
     mutationFn: () => {
@@ -310,36 +286,23 @@ export function CartaoModal({ aberto, fechar, editar }: {
 // ============================================================================
 // NOVO / EDITAR INVESTIMENTO
 // ============================================================================
-export function InvestimentoModal({ aberto, fechar, editar }: {
+export function InvestimentoModal(props: { aberto: boolean; fechar: () => void; editar?: Investimento }) {
+  return props.aberto ? <InvestimentoForm key={props.editar?.id ?? "novo"} {...props} /> : null
+}
+function InvestimentoForm({ aberto, fechar, editar }: {
   aberto: boolean; fechar: () => void; editar?: Investimento
 }) {
   const qc = useQueryClient()
-  const [nome, setNome] = useState("")
-  const [tipo, setTipo] = useState<string>("tesouro")
-  const [instituicao, setInstituicao] = useState("")
-  const [aplicado, setAplicado] = useState("")
-  const [atual, setAtual] = useState("")
-  const [rend, setRend] = useState("")
-  const [dataAplic, setDataAplic] = useState("")
-  const [venc, setVenc] = useState("")
-  const [cor, setCor] = useState("#3b82f6")
+  const [nome, setNome] = useState(editar?.nome || "")
+  const [tipo, setTipo] = useState<string>(editar?.tipo || "tesouro")
+  const [instituicao, setInstituicao] = useState(editar?.instituicao || "")
+  const [aplicado, setAplicado] = useState(editar?.valor_aplicado?.toString().replace(".", ",") || "")
+  const [atual, setAtual] = useState(editar?.valor_atual?.toString().replace(".", ",") || "")
+  const [rend, setRend] = useState(editar?.rentabilidade_anual?.toString().replace(".", ",") || "")
+  const [dataAplic, setDataAplic] = useState(editar?.data_aplicacao || new Date().toISOString().slice(0, 10))
+  const [venc, setVenc] = useState(editar?.vencimento || "")
+  const [cor, setCor] = useState(editar?.cor || "#3b82f6")
   const [erro, setErro] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!aberto) return
-    if (editar) {
-      setNome(editar.nome); setTipo(editar.tipo); setInstituicao(editar.instituicao || "")
-      setAplicado(editar.valor_aplicado.toString().replace(".", ","))
-      setAtual(editar.valor_atual.toString().replace(".", ","))
-      setRend(editar.rentabilidade_anual.toString().replace(".", ","))
-      setDataAplic(editar.data_aplicacao); setVenc(editar.vencimento || ""); setCor(editar.cor)
-    } else {
-      setNome(""); setTipo("tesouro"); setInstituicao(""); setAplicado(""); setAtual("")
-      setRend(""); setDataAplic(new Date().toISOString().slice(0, 10))
-      setVenc(""); setCor("#3b82f6")
-    }
-    setErro(null)
-  }, [aberto, editar])
 
   const mut = useMutation({
     mutationFn: () => {

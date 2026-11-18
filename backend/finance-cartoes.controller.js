@@ -7,6 +7,13 @@ const admin = require('firebase-admin');
 
 const BANDEIRAS_VALIDAS = ['visa', 'mastercard', 'elo', 'amex', 'hipercard', 'outra'];
 
+function sanitizeBandeira(raw) {
+    const s = String(raw || '').trim().toLowerCase();
+    if (!s) return null;
+    if (BANDEIRAS_VALIDAS.includes(s)) return s;
+    return s.slice(0, 40);
+}
+
 function normalize(s) { return String(s == null ? '' : s).trim(); }
 function num(v) { const n = Number(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; }
 function int(v, min, max) {
@@ -94,7 +101,7 @@ exports.listar = async (req, res) => {
 exports.criar = async (req, res) => {
     try {
         const nome = normalize(req.body.nome);
-        const bandeira = normalize(req.body.bandeira).toLowerCase();
+        const bandeira = sanitizeBandeira(req.body.bandeira);
         const banco = normalize(req.body.banco);
         const limite = num(req.body.limite);
         const divida_inicial = num(req.body.divida_inicial);
@@ -103,9 +110,7 @@ exports.criar = async (req, res) => {
         const cor = normalize(req.body.cor) || '#64748b';
 
         if (!nome) return res.status(400).json({ error: 'Apelido do cartao e obrigatorio.' });
-        if (!BANDEIRAS_VALIDAS.includes(bandeira)) {
-            return res.status(400).json({ error: 'Bandeira invalida. Use ' + BANDEIRAS_VALIDAS.join('/') + '.' });
-        }
+        if (!bandeira) return res.status(400).json({ error: 'Informe a bandeira.' });
         if (dia_fechamento == null) return res.status(400).json({ error: 'Dia de fechamento invalido (1 a 31).' });
         if (dia_vencimento == null) return res.status(400).json({ error: 'Dia de vencimento invalido (1 a 31).' });
 
@@ -135,8 +140,8 @@ exports.atualizar = async (req, res) => {
             if (req.body[k] !== undefined) patch[k] = normalize(req.body[k]) || null;
         });
         if (req.body.bandeira !== undefined) {
-            const b = String(req.body.bandeira).toLowerCase();
-            if (!BANDEIRAS_VALIDAS.includes(b)) return res.status(400).json({ error: 'Bandeira invalida.' });
+            const b = sanitizeBandeira(req.body.bandeira);
+            if (!b) return res.status(400).json({ error: 'Bandeira invalida.' });
             patch.bandeira = b;
         }
         if (req.body.limite !== undefined) patch.limite = num(req.body.limite);

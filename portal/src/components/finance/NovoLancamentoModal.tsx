@@ -24,6 +24,37 @@ const FORMAS: { valor: FormaPagamento; label: string }[] = [
   { valor: "dinheiro", label: "Dinheiro" },
 ]
 
+const OUTRO_CAT = "__outro__"
+function CategoriaSelect({ lista, valor, setValor }: { lista: string[]; valor: string; setValor: (v: string) => void }) {
+  const naLista = lista.includes(valor)
+  const [modoOutro, setModoOutro] = useState(!naLista && !!valor)
+  useEffect(() => { setModoOutro(!naLista && !!valor) }, [valor, naLista])
+  return (
+    <>
+      <select
+        value={modoOutro ? OUTRO_CAT : valor}
+        onChange={(e) => {
+          if (e.target.value === OUTRO_CAT) { setModoOutro(true); setValor("") }
+          else { setModoOutro(false); setValor(e.target.value) }
+        }}
+      >
+        {lista.map((c) => <option key={c} value={c}>{c}</option>)}
+        <option value={OUTRO_CAT}>Outro…</option>
+      </select>
+      {modoOutro && (
+        <input
+          autoFocus
+          type="text"
+          value={valor}
+          onChange={(e) => setValor(e.target.value)}
+          placeholder="Escreva (ex: Presente do João, Dentista parcela 3)"
+          style={{ marginTop: 6 }}
+        />
+      )}
+    </>
+  )
+}
+
 function hojeISO(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -148,9 +179,7 @@ export function NovoLancamentoModal({
           </div>
           <div className="ff-field">
             <label>Categoria</label>
-            <select value={categoria} onChange={(e) => setCategoria(e.target.value)}>
-              {lista.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <CategoriaSelect lista={lista} valor={categoria} setValor={setCategoria} />
           </div>
           <div className="ff-field ff-field--full">
             <label>{tipo === "despesa" ? "Estabelecimento / descrição" : "Descrição"}</label>

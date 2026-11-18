@@ -2,13 +2,14 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Bell, ChevronRight, CreditCard, FileInput, Fuel, Landmark, LayoutDashboard, LineChart,
-  List, LogOut, Moon, Plus, Settings, Sun, TrendingUp, Trash2, Wallet,
+  List, LogOut, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, Wallet,
 } from "lucide-react"
+import type { Cartao, Conta, Investimento } from "@/lib/finance-api"
 import { useAuth } from "@/contexts/auth"
 import { useTheme } from "@/hooks/useTheme"
 import { NovoLancamentoModal } from "@/components/finance/NovoLancamentoModal"
 import {
-  NovaContaModal, NovoCartaoModal, NovoInvestimentoModal,
+  CartaoModal, ContaModal, InvestimentoModal,
 } from "@/components/finance/CadastrosModais"
 import { ImportarOFXModal } from "@/components/finance/ImportarOFXModal"
 import { PreferenciasPainelModal } from "@/components/finance/PreferenciasPainelModal"
@@ -50,11 +51,17 @@ export function PainelFinance() {
   const qc = useQueryClient()
   const [mode, toggleTheme] = useTheme()
   const [modalAberto, setModalAberto] = useState(false)
+  const [contaEdit, setContaEdit] = useState<Conta | undefined>(undefined)
+  const [cartaoEdit, setCartaoEdit] = useState<Cartao | undefined>(undefined)
+  const [investEdit, setInvestEdit] = useState<Investimento | undefined>(undefined)
   const [contaAberta, setContaAberta] = useState(false)
   const [cartaoAberto, setCartaoAberto] = useState(false)
   const [investAberto, setInvestAberto] = useState(false)
   const [importAberto, setImportAberto] = useState(false)
   const [prefsAberto, setPrefsAberto] = useState(false)
+  function abrirConta(c?: Conta) { setContaEdit(c); setContaAberta(true) }
+  function abrirCartao(c?: Cartao) { setCartaoEdit(c); setCartaoAberto(true) }
+  function abrirInvest(i?: Investimento) { setInvestEdit(i); setInvestAberto(true) }
   const [filtroForma, setFiltroForma] = useState<FormaPagamento | "todas">("todas")
 
   const prefsQ = useQuery({ queryKey: ["finance", "preferencias"], queryFn: getPreferenciasPainel })
@@ -207,12 +214,14 @@ export function PainelFinance() {
                     <div className="ff-card-name">{c.nome}</div>
                     <div className="ff-card-type">{labelConta(c.tipo)}</div>
                   </div>
+                  <button className="ff-card-edit" onClick={() => abrirConta(c)} aria-label="Editar conta" title="Editar conta">
+                    <Pencil className="size-3.5" />
+                  </button>
                 </div>
                 <div className="ff-card-saldo">{fmtBRL(c.saldo_atual)}</div>
-                {c.banco && <div className="ff-card-meta"><span>{c.banco}</span></div>}
               </article>
             ))}
-            <button className="ff-bank-card ff-add-card" onClick={() => setContaAberta(true)}>
+            <button className="ff-bank-card ff-add-card" onClick={() => abrirConta(undefined)}>
               <Plus className="size-5" /> Nova conta
             </button>
           </div>
@@ -233,6 +242,9 @@ export function PainelFinance() {
                           {c.banco ? c.banco + " · " : ""}Fecha dia {c.dia_fechamento} · vence dia {c.dia_vencimento}
                         </div>
                       </div>
+                      <button className="ff-card-edit" onClick={() => abrirCartao(c)} aria-label="Editar cartão" title="Editar cartão">
+                        <Pencil className="size-3.5" />
+                      </button>
                     </div>
                     <div>
                       <div className="ff-label">Fatura aberta</div>
@@ -250,7 +262,7 @@ export function PainelFinance() {
                     )}
                   </article>
                 ))}
-                <button className="ff-bank-card ff-add-card" onClick={() => setCartaoAberto(true)}>
+                <button className="ff-bank-card ff-add-card" onClick={() => abrirCartao(undefined)}>
                   <Plus className="size-5" /> Novo cartão
                 </button>
               </div>
@@ -258,7 +270,7 @@ export function PainelFinance() {
           </>
         )}
         {(prefsQ.data?.mostrar_cartoes !== false) && !cartoesQ.isLoading && cartoes.length === 0 && (
-          <button className="ff-empty-add" onClick={() => setCartaoAberto(true)}>
+          <button className="ff-empty-add" onClick={() => abrirCartao(undefined)}>
             <CreditCard className="size-4" /> Adicionar cartão de crédito
           </button>
         )}
@@ -276,6 +288,9 @@ export function PainelFinance() {
                         <div className="ff-card-name">{i.nome}</div>
                         <div className="ff-card-type">{labelInvestimento(i.tipo)}{i.instituicao ? " · " + i.instituicao : ""}</div>
                       </div>
+                      <button className="ff-card-edit" onClick={() => abrirInvest(i)} aria-label="Editar investimento" title="Editar investimento">
+                        <Pencil className="size-3.5" />
+                      </button>
                     </div>
                     <div className="ff-card-saldo">{fmtBRL(i.valor_atual)}</div>
                     <div className="ff-card-meta">
@@ -286,7 +301,7 @@ export function PainelFinance() {
                     </div>
                   </article>
                 ))}
-                <button className="ff-bank-card ff-add-card" onClick={() => setInvestAberto(true)}>
+                <button className="ff-bank-card ff-add-card" onClick={() => abrirInvest(undefined)}>
                   <Plus className="size-5" /> Novo investimento
                 </button>
               </div>
@@ -294,7 +309,7 @@ export function PainelFinance() {
           </>
         )}
         {(prefsQ.data?.mostrar_investimentos !== false) && !invQ.isLoading && investimentos.length === 0 && (
-          <button className="ff-empty-add" onClick={() => setInvestAberto(true)}>
+          <button className="ff-empty-add" onClick={() => abrirInvest(undefined)}>
             <TrendingUp className="size-4" /> Adicionar investimento
           </button>
         )}
@@ -404,9 +419,9 @@ export function PainelFinance() {
         contas={contas}
         cartoes={cartoes}
       />
-      <NovaContaModal aberto={contaAberta} fechar={() => setContaAberta(false)} />
-      <NovoCartaoModal aberto={cartaoAberto} fechar={() => setCartaoAberto(false)} />
-      <NovoInvestimentoModal aberto={investAberto} fechar={() => setInvestAberto(false)} />
+      <ContaModal aberto={contaAberta} fechar={() => setContaAberta(false)} editar={contaEdit} />
+      <CartaoModal aberto={cartaoAberto} fechar={() => setCartaoAberto(false)} editar={cartaoEdit} />
+      <InvestimentoModal aberto={investAberto} fechar={() => setInvestAberto(false)} editar={investEdit} />
       <ImportarOFXModal
         aberto={importAberto}
         fechar={() => setImportAberto(false)}

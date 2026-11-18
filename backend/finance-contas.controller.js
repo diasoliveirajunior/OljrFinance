@@ -8,6 +8,14 @@ const admin = require('firebase-admin');
 
 const TIPOS_VALIDOS = ['corrente', 'poupanca', 'carteira', 'outra'];
 
+// Aceita um tipo pre-definido OU um texto livre (max 40 chars) pra "Outro...".
+function sanitizeTipo(raw) {
+    const s = String(raw || '').trim().toLowerCase();
+    if (!s) return null;
+    if (TIPOS_VALIDOS.includes(s)) return s;
+    return s.slice(0, 40);
+}
+
 function normalize(s) {
     return String(s == null ? '' : s).trim();
 }
@@ -67,15 +75,13 @@ exports.criar = async (req, res) => {
         // A partir de 18/11 o front envia apenas 'banco' como identificacao da conta.
         // Aceita 'nome' por compatibilidade com clientes antigos.
         const banco = normalize(req.body.banco) || normalize(req.body.nome);
-        const tipo = normalize(req.body.tipo).toLowerCase();
+        const tipo = sanitizeTipo(req.body.tipo);
         const cor = normalize(req.body.cor) || '#64748b';
         const saldo_inicial = num(req.body.saldo_inicial);
         const observacao = normalize(req.body.observacao);
 
         if (!banco) return res.status(400).json({ error: 'Informe o banco/instituicao.' });
-        if (!TIPOS_VALIDOS.includes(tipo)) {
-            return res.status(400).json({ error: 'Tipo invalido. Use ' + TIPOS_VALIDOS.join('/') + '.' });
-        }
+        if (!tipo) return res.status(400).json({ error: 'Informe o tipo da conta.' });
 
         const doc = {
             email: req.user.email,
@@ -105,8 +111,8 @@ exports.atualizar = async (req, res) => {
             if (req.body[k] !== undefined) patch[k] = normalize(req.body[k]) || null;
         });
         if (req.body.tipo !== undefined) {
-            const t = String(req.body.tipo).toLowerCase();
-            if (!TIPOS_VALIDOS.includes(t)) return res.status(400).json({ error: 'Tipo invalido.' });
+            const t = sanitizeTipo(req.body.tipo);
+            if (!t) return res.status(400).json({ error: 'Tipo invalido.' });
             patch.tipo = t;
         }
         if (req.body.saldo_inicial !== undefined) patch.saldo_inicial = num(req.body.saldo_inicial);

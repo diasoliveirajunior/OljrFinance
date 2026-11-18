@@ -7,6 +7,13 @@ const admin = require('firebase-admin');
 
 const TIPOS_VALIDOS = ['tesouro', 'cdb', 'lci', 'lca', 'fundo', 'acao', 'fii', 'cripto', 'poupanca', 'outro'];
 
+function sanitizeTipo(raw) {
+    const s = String(raw || '').trim().toLowerCase();
+    if (!s) return null;
+    if (TIPOS_VALIDOS.includes(s)) return s;
+    return s.slice(0, 40);
+}
+
 function normalize(s) { return String(s == null ? '' : s).trim(); }
 function num(v) { const n = Number(String(v).replace(',', '.')); return Number.isFinite(n) ? n : 0; }
 function iso(s) {
@@ -50,7 +57,7 @@ exports.listar = async (req, res) => {
 exports.criar = async (req, res) => {
     try {
         const nome = normalize(req.body.nome);
-        const tipo = normalize(req.body.tipo).toLowerCase();
+        const tipo = sanitizeTipo(req.body.tipo);
         const instituicao = normalize(req.body.instituicao);
         const valor_aplicado = num(req.body.valor_aplicado);
         const valor_atual = req.body.valor_atual !== undefined ? num(req.body.valor_atual) : valor_aplicado;
@@ -61,9 +68,7 @@ exports.criar = async (req, res) => {
         const cor = normalize(req.body.cor) || '#64748b';
 
         if (!nome) return res.status(400).json({ error: 'Nome e obrigatorio.' });
-        if (!TIPOS_VALIDOS.includes(tipo)) {
-            return res.status(400).json({ error: 'Tipo invalido. Use ' + TIPOS_VALIDOS.join('/') + '.' });
-        }
+        if (!tipo) return res.status(400).json({ error: 'Informe o tipo do investimento.' });
         if (!data_aplicacao) return res.status(400).json({ error: 'Data de aplicacao invalida (use YYYY-MM-DD).' });
 
         const ref = await admin.firestore().collection('finance_investimentos').add({
@@ -94,8 +99,8 @@ exports.atualizar = async (req, res) => {
             if (req.body[k] !== undefined) patch[k] = normalize(req.body[k]) || null;
         });
         if (req.body.tipo !== undefined) {
-            const t = String(req.body.tipo).toLowerCase();
-            if (!TIPOS_VALIDOS.includes(t)) return res.status(400).json({ error: 'Tipo invalido.' });
+            const t = sanitizeTipo(req.body.tipo);
+            if (!t) return res.status(400).json({ error: 'Tipo invalido.' });
             patch.tipo = t;
         }
         ['valor_aplicado', 'valor_atual', 'rentabilidade_anual'].forEach(k => {

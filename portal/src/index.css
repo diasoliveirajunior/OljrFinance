@@ -1158,6 +1158,49 @@ html[data-theme="light"] .ff-app {
   background: rgba(0,0,0,0.55); color: #fff;
   padding: 4px; display: grid; place-items: center;
 }
+
+/* Topbar avatar e sidebar retratil */
+.ff-topbar-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--ff-brand-bg); color: var(--ff-brand);
+  display: grid; place-items: center;
+  border: 1px solid var(--ff-border);
+  cursor: pointer; padding: 0; overflow: hidden;
+  font-weight: 600; font-size: 12px;
+  flex-shrink: 0;
+  transition: outline .12s;
+}
+.ff-topbar-avatar:hover { outline: 2px solid var(--ff-brand); outline-offset: 2px; }
+.ff-topbar-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.ff-topbar-menu { flex-shrink: 0; }
+.ff-sidebar-footer-hint {
+  font-size: 11px; color: var(--ff-fg-muted);
+  flex: 1;
+}
+
+/* Sidebar recolhida: so icones */
+.ff-app--collapsed { grid-template-columns: 72px 1fr; }
+.ff-app--collapsed .ff-sidebar {
+  padding: 24px 12px;
+}
+.ff-app--collapsed .ff-brand > div:last-child,
+.ff-app--collapsed .ff-nav-item > *:not(svg),
+.ff-app--collapsed .ff-nav-sep,
+.ff-app--collapsed .ff-sidebar-footer-hint {
+  display: none;
+}
+.ff-app--collapsed .ff-brand {
+  justify-content: center; padding: 0 0 20px 0;
+}
+.ff-app--collapsed .ff-nav-item {
+  justify-content: center; padding: 10px 0;
+}
+.ff-app--collapsed .ff-sidebar-footer { justify-content: center; }
+
+@media (max-width: 860px) {
+  .ff-topbar-avatar { width: 32px; height: 32px; }
+  .ff-app--collapsed { grid-template-columns: 1fr; }
+}
 .ff-modal-head {
   display: flex; justify-content: space-between; align-items: center;
   margin-bottom: 14px;

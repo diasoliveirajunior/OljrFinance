@@ -97,20 +97,51 @@ export function PerfilModal({ aberto, fechar }: { aberto: boolean; fechar: () =>
     }
   }
 
+  // Redimensiona pra 256x256 (quadrado centralizado) + JPEG 80% quality.
+  // Resultado tipico: 15-30 KB. Resolve o "imagem muito grande" do OljrCeo
+  // sem precisar de Firebase Storage, salvando como dataURL em photoURL.
+  async function redimensionar(file: File): Promise<string> {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    try {
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve()
+        img.onerror = () => reject(new Error("Imagem inválida."))
+        img.src = url
+      })
+      const size = 256
+      const canvas = document.createElement("canvas")
+      canvas.width = size; canvas.height = size
+      const ctx = canvas.getContext("2d")
+      if (!ctx) throw new Error("Falha ao processar imagem.")
+      // Crop quadrado centralizado.
+      const scale = Math.max(size / img.width, size / img.height)
+      const w = img.width * scale, h = img.height * scale
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h)
+      return canvas.toDataURL("image/jpeg", 0.82)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  }
+
   function escolherFoto() {
     const input = document.createElement("input")
     input.type = "file"
     input.accept = "image/*"
-    input.onchange = () => {
+    input.onchange = async () => {
       const f = input.files?.[0]
       if (!f) return
-      if (f.size > 500 * 1024) {
-        setErro("Imagem muito grande (máx 500 KB).")
+      if (f.size > 10 * 1024 * 1024) {
+        setErro("Imagem muito grande (limite 10 MB antes do redimensionamento).")
         return
       }
-      const reader = new FileReader()
-      reader.onload = () => { setFoto(String(reader.result)); setErro(null) }
-      reader.readAsDataURL(f)
+      try {
+        const dataUrl = await redimensionar(f)
+        setFoto(dataUrl)
+        setErro(null)
+      } catch (err) {
+        setErro(err instanceof Error ? err.message : "Falha ao processar imagem.")
+      }
     }
     input.click()
   }
@@ -146,7 +177,7 @@ export function PerfilModal({ aberto, fechar }: { aberto: boolean; fechar: () =>
                 <div className="ff-perfil-avatar-overlay"><Camera className="size-4" /></div>
               </button>
               <div className="ff-inline-hint" style={{ textAlign: "center" }}>
-                Clique na foto pra trocar (máx 500 KB)
+                Clique na foto pra trocar. A imagem é reduzida a 256×256 automaticamente (aceita até 10 MB).
               </div>
             </div>
             <div className="ff-field ff-field--full">

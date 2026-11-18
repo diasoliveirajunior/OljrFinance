@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Bell, ChevronRight, CreditCard, FileInput, Fuel, Home, Landmark, LayoutDashboard, LineChart,
-  List, LogOut, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, User, Wallet,
+  List, LogOut, Menu, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, User, Wallet,
 } from "lucide-react"
 import type { Cartao, Conta, Investimento } from "@/lib/finance-api"
 import { useAuth } from "@/contexts/auth"
@@ -49,7 +49,7 @@ function saudacao(): string {
 }
 
 export function PainelFinance() {
-  const { me, logout } = useAuth()
+  const { me, firebaseUser, logout } = useAuth()
   const qc = useQueryClient()
   const [mode, toggleTheme] = useTheme()
   const [modalAberto, setModalAberto] = useState(false)
@@ -63,6 +63,18 @@ export function PainelFinance() {
   const [prefsAberto, setPrefsAberto] = useState(false)
   const [perfilAberto, setPerfilAberto] = useState(false)
   const [view, setView] = useState<"inicio" | "geral">("inicio")
+  const [sidebarRecolhida, setSidebarRecolhida] = useState(() => {
+    try { return localStorage.getItem("ff-sidebar-recolhida") === "1" } catch { return false }
+  })
+  function toggleSidebar() {
+    setSidebarRecolhida((v) => {
+      const nova = !v
+      try { localStorage.setItem("ff-sidebar-recolhida", nova ? "1" : "0") } catch {
+        // ignora
+      }
+      return nova
+    })
+  }
   function abrirConta(c?: Conta) { setContaEdit(c); setContaAberta(true) }
   function abrirCartao(c?: Cartao) { setCartaoEdit(c); setCartaoAberto(true) }
   function abrirInvest(i?: Investimento) { setInvestEdit(i); setInvestAberto(true) }
@@ -117,7 +129,7 @@ export function PainelFinance() {
   }
 
   return (
-    <div className="ff-app">
+    <div className={sidebarRecolhida ? "ff-app ff-app--collapsed" : "ff-app"}>
       <aside className="ff-sidebar">
         <div className="ff-brand">
           <div className="ff-brand-icon"><Wallet className="size-[18px]" /></div>
@@ -143,33 +155,35 @@ export function PainelFinance() {
           <button className="ff-nav-item"><LineChart className="size-4" /> Relatórios</button>
         </nav>
         <div className="ff-sidebar-footer">
-          <button className="ff-avatar ff-avatar--btn" onClick={() => setPerfilAberto(true)} title="Perfil e senha">
-            {me?.usuario?.nome || iniciais(nome)
-              ? <span>{iniciais(nome)}</span>
-              : <User className="size-4" />}
-          </button>
-          <div className="ff-user-info">
-            <div className="ff-user-name">{nome}</div>
-            <div className="ff-user-role">{papel}</div>
-          </div>
-          <button className="ff-icon-btn" onClick={() => setPerfilAberto(true)} aria-label="Perfil" title="Perfil e senha">
-            <User className="size-4" />
-          </button>
           <button className="ff-icon-btn" onClick={() => logout()} aria-label="Sair" title="Sair">
             <LogOut className="size-4" />
           </button>
+          <span className="ff-sidebar-footer-hint">Sair</span>
         </div>
       </aside>
 
       <main className="ff-main">
         <div className="ff-topbar">
-          <div>
-            <h1>{saudacao()}, {primeiro}</h1>
-            <div className="ff-topbar-meta">
-              {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              className="ff-icon-btn ff-topbar-menu"
+              onClick={toggleSidebar}
+              aria-label={sidebarRecolhida ? "Expandir menu" : "Recolher menu"}
+              title={sidebarRecolhida ? "Expandir menu" : "Recolher menu"}
+            >
+              <Menu className="size-4" />
+            </button>
+            <div>
+              <h1>{saudacao()}, {primeiro}</h1>
+              <div className="ff-topbar-meta">
+                {new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+              </div>
             </div>
           </div>
           <div className="ff-topbar-actions">
+            <button className="ff-btn ff-btn--primary" onClick={() => setModalAberto(true)}>
+              <Plus className="size-4" /> Lançar
+            </button>
             <button className="ff-icon-btn" onClick={toggleTheme} aria-label="Alternar tema" title="Alternar claro/escuro">
               {mode === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </button>
@@ -179,8 +193,17 @@ export function PainelFinance() {
             <button className="ff-icon-btn" aria-label="Notificações" title="Notificações">
               <Bell className="size-4" />
             </button>
-            <button className="ff-btn ff-btn--primary" onClick={() => setModalAberto(true)}>
-              <Plus className="size-4" /> Lançar
+            <button
+              className="ff-topbar-avatar"
+              onClick={() => setPerfilAberto(true)}
+              title={`Perfil · ${nome}`}
+              aria-label="Perfil e senha"
+            >
+              {firebaseUser?.photoURL ? (
+                <img src={firebaseUser.photoURL} alt="" />
+              ) : (
+                <span>{iniciais(nome)}</span>
+              )}
             </button>
           </div>
         </div>

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
-  Bell, ChevronRight, CreditCard, FileInput, Fuel, Landmark, LayoutDashboard, LineChart,
-  List, LogOut, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, Wallet,
+  Bell, ChevronRight, CreditCard, FileInput, Fuel, Home, Landmark, LayoutDashboard, LineChart,
+  List, LogOut, Moon, Pencil, Plus, Settings, Sun, TrendingUp, Trash2, User, Wallet,
 } from "lucide-react"
 import type { Cartao, Conta, Investimento } from "@/lib/finance-api"
 import { useAuth } from "@/contexts/auth"
@@ -13,6 +13,8 @@ import {
 } from "@/components/finance/CadastrosModais"
 import { ImportarOFXModal } from "@/components/finance/ImportarOFXModal"
 import { PreferenciasPainelModal } from "@/components/finance/PreferenciasPainelModal"
+import { PerfilModal } from "@/components/finance/PerfilModal"
+import { HomeFinance } from "@/components/finance/HomeFinance"
 import {
   fmtBRL, fmtDataCurta,
   getCombustivel, getPatrimonio, getPreferenciasPainel,
@@ -59,6 +61,8 @@ export function PainelFinance() {
   const [investAberto, setInvestAberto] = useState(false)
   const [importAberto, setImportAberto] = useState(false)
   const [prefsAberto, setPrefsAberto] = useState(false)
+  const [perfilAberto, setPerfilAberto] = useState(false)
+  const [view, setView] = useState<"inicio" | "geral">("inicio")
   function abrirConta(c?: Conta) { setContaEdit(c); setContaAberta(true) }
   function abrirCartao(c?: Cartao) { setCartaoEdit(c); setCartaoAberto(true) }
   function abrirInvest(i?: Investimento) { setInvestEdit(i); setInvestAberto(true) }
@@ -123,22 +127,34 @@ export function PainelFinance() {
           </div>
         </div>
         <nav className="ff-nav">
-          <button className="ff-nav-item is-active"><LayoutDashboard className="size-4" /> Visão geral</button>
-          <button className="ff-nav-item" onClick={() => setModalAberto(true)}><Landmark className="size-4" /> Contas</button>
-          <button className="ff-nav-item"><CreditCard className="size-4" /> Cartões</button>
-          <button className="ff-nav-item"><TrendingUp className="size-4" /> Investimentos</button>
-          <button className="ff-nav-item"><List className="size-4" /> Movimentações</button>
+          <button className={view === "inicio" ? "ff-nav-item is-active" : "ff-nav-item"} onClick={() => setView("inicio")}>
+            <Home className="size-4" /> Início
+          </button>
+          <button className={view === "geral" ? "ff-nav-item is-active" : "ff-nav-item"} onClick={() => setView("geral")}>
+            <LayoutDashboard className="size-4" /> Visão geral
+          </button>
+          <button className="ff-nav-item" onClick={() => { setView("geral"); abrirConta(undefined) }}><Landmark className="size-4" /> Contas</button>
+          <button className="ff-nav-item" onClick={() => { setView("geral"); abrirCartao(undefined) }}><CreditCard className="size-4" /> Cartões</button>
+          <button className="ff-nav-item" onClick={() => { setView("geral"); abrirInvest(undefined) }}><TrendingUp className="size-4" /> Investimentos</button>
+          <button className="ff-nav-item" onClick={() => setView("geral")}><List className="size-4" /> Movimentações</button>
           <button className="ff-nav-item" onClick={() => setImportAberto(true)}>
             <FileInput className="size-4" /> Importar extrato
           </button>
           <button className="ff-nav-item"><LineChart className="size-4" /> Relatórios</button>
         </nav>
         <div className="ff-sidebar-footer">
-          <div className="ff-avatar">{iniciais(nome)}</div>
+          <button className="ff-avatar ff-avatar--btn" onClick={() => setPerfilAberto(true)} title="Perfil e senha">
+            {me?.usuario?.nome || iniciais(nome)
+              ? <span>{iniciais(nome)}</span>
+              : <User className="size-4" />}
+          </button>
           <div className="ff-user-info">
             <div className="ff-user-name">{nome}</div>
             <div className="ff-user-role">{papel}</div>
           </div>
+          <button className="ff-icon-btn" onClick={() => setPerfilAberto(true)} aria-label="Perfil" title="Perfil e senha">
+            <User className="size-4" />
+          </button>
           <button className="ff-icon-btn" onClick={() => logout()} aria-label="Sair" title="Sair">
             <LogOut className="size-4" />
           </button>
@@ -169,6 +185,15 @@ export function PainelFinance() {
           </div>
         </div>
 
+        {view === "inicio" && (
+          <HomeFinance
+            primeiroNome={primeiro}
+            prefs={prefsQ.data}
+            onIrPara={(s) => setView(s)}
+          />
+        )}
+
+        {view === "geral" && <>
         <section className="ff-patrimonio">
           <div className="ff-patrimonio-main">
             <div className="ff-label">Patrimônio total</div>
@@ -407,6 +432,7 @@ export function PainelFinance() {
             })
           )}
         </div>
+        </>}
       </main>
 
       <button className="ff-fab" onClick={() => setModalAberto(true)} aria-label="Novo lançamento" title="Novo lançamento">
@@ -429,6 +455,7 @@ export function PainelFinance() {
         cartoes={cartoes}
       />
       <PreferenciasPainelModal aberto={prefsAberto} fechar={() => setPrefsAberto(false)} />
+      <PerfilModal aberto={perfilAberto} fechar={() => setPerfilAberto(false)} />
     </div>
   )
 }

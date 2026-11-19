@@ -23,4 +23,4 @@ jobs:
         working-directory: portal
       - run: npm run lint
         working-directory: portal
-      - run: node --test backend/finance-import.test.js backend/finance-import-save.test.js backend/finance-google-drive.test.js
+      - run: node --test backend/finance-import.test.js backend/finance-import-save.test.js backend/finance-google-drive.test.js backend/finance-drive-sync.test.js

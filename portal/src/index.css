@@ -1423,3 +1423,9 @@ html[data-theme="light"] .ff-app {
   .ff-modal-form { grid-template-columns: 1fr; }
 }
 
+
+.ff-drive-toolbar { flex-wrap: wrap; }
+.ff-drive-browser { margin-top: 12px; border: 1px solid var(--ff-border); border-radius: 8px; padding: 12px; }
+.ff-drive-files li { min-width: 0; overflow-wrap: anywhere; }
+.ff-drive-files li > span { display: block; padding: 8px 0; }
+.ff-drive-files li > .ff-btn { margin-top: 6px; }

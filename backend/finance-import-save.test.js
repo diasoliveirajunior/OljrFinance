@@ -11,7 +11,7 @@ function setup() {
         doc: id => ({ id: `${name}/${id}` }),
         where(field, op, value) {
             const conditions = [[field, op, value]];
-            const query = { conditions, name, where(f, o, v) { conditions.push([f, o, v]); return query; } };
+            const query = { conditions, name, where(f, o, v) { return { ...this, conditions: [...this.conditions, [f, o, v]] }; } };
             return query;
         },
     });
@@ -24,6 +24,7 @@ function setup() {
                 return { forEach: visit => found.forEach(([, data]) => visit({ data: () => data })) };
             },
             async getAll(...refs) { return refs.map(ref => snapshot(ref.id)); },
+            update(ref, data) { writes.push([ref.id, { ...docs.get(ref.id), ...data }]); },
             create(ref, data) { writes.push([ref.id, data]); },
             set(ref, data) { writes.push([ref.id, data]); },
         };

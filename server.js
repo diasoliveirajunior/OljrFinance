@@ -186,6 +186,7 @@ app.use((req, res) => {
 if (require.main === module) {
     app.listen(port, () => {
         console.log(`Servidor OljrFinance rodando na porta ${port}`);
+        require('./backend/finance-drive-sync').start();
     });
 }
 

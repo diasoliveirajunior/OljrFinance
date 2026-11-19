@@ -246,7 +246,7 @@ async function pdf(buffer, category) {
         }
         if (!textLength) throw new Error('PDF sem texto selecionável (escaneado). Exporte OFX, Excel ou CSV do banco.');
         if (!rows.length) throw new Error('Não foi possível identificar os lançamentos com segurança neste PDF. Prefira OFX, Excel ou CSV. Datas precisam incluir o ano e cada linha deve ter um único valor.');
-        return { rows, avisos: ['A leitura de PDF depende do formato do banco. Compare os lançamentos e totais com o documento original antes de confirmar.',
+        return { rows, automaticIssues: ignored.length > 0, avisos: ['A leitura de PDF depende do formato do banco. Compare os lançamentos e totais com o documento original antes de confirmar.',
             ...(ignored.length ? [`${ignored.length} linha(s) com data não foram convertidas (incluindo saldos, totais ou colunas ambíguas). Confira o PDF original.`] : [])] };
     } finally { await task.destroy(); }
 }
@@ -285,11 +285,20 @@ async function preview(body, category) {
             });
             return { name: sheet.name, rows };
         });
-        result = tablePreview(tables, body, category);
+        if (body.automatico) {
+            const previews = tables.map((_, aba) => tablePreview(tables, { ...body, aba }, category));
+            result = { rows: previews.flatMap(p => p.rows), avisos: [],
+                automaticIssues: previews.some((p, i) => !p.rows.length && tables[i].rows.some(r => r.some(c => date(c)))),
+                conferencia: { linhas_divergentes: previews.flatMap(p => p.conferencia.linhas_divergentes) } };
+        } else result = tablePreview(tables, body, category);
         result.avisos.push('Células com fórmulas não são importadas. Cole os resultados como valores antes de enviar.');
     }
     return { ...result, formato: extension };
 }
+
+// Apenas para detectar possíveis repetições; não funde movimentos por semelhança.
+const transactionSignature = row => hash(JSON.stringify([row.data, row.tipo, Math.round(Number(row.valor) * 100),
+    String(row.descricao).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()]));
 
 function validateRows(rows) {
     if (!Array.isArray(rows) || !rows.length || rows.length > MAX_ROWS) throw new Error('Selecione entre 1 e 1.000 lançamentos.');
@@ -303,4 +312,4 @@ function validateRows(rows) {
     });
 }
 
-module.exports = { preview, validateRows, hash, date, money, ofx, tablePreview, csv, MAX_ROWS };
+module.exports = { preview, validateRows, hash, date, money, ofx, tablePreview, csv, MAX_ROWS, transactionSignature };

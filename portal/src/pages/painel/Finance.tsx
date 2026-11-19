@@ -59,7 +59,7 @@ export function PainelFinance() {
   const [contaAberta, setContaAberta] = useState(false)
   const [cartaoAberto, setCartaoAberto] = useState(false)
   const [investAberto, setInvestAberto] = useState(false)
-  const [importAberto, setImportAberto] = useState(false)
+  const [importAberto, setImportAberto] = useState(() => new URLSearchParams(window.location.search).has("drive"))
   const [prefsAberto, setPrefsAberto] = useState(false)
   const [perfilAberto, setPerfilAberto] = useState(false)
   const [view, setView] = useState<"inicio" | "geral">("inicio")

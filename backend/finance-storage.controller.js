@@ -71,12 +71,14 @@ exports.status = async (req, res) => {
     ['google', 'microsoft'].forEach((provider, index) => {
         const cfg = providerConfig(provider);
         const data = snapshots[index].exists ? snapshots[index].data() : null;
+        const connected = Boolean(data && data.ativo && (provider !== 'google' ||
+            data.uid === req.firebaseUid && data.scope === 'https://www.googleapis.com/auth/drive.readonly'));
         providers[provider] = {
             configurado: cfg.configured,
-            conectado: Boolean(data && data.ativo),
-            pasta_nome: data?.pasta_nome || null,
-            pasta_url: data?.pasta_url || null,
-            conectado_em: data?.conectado_em || null
+            conectado: connected,
+            pasta_nome: connected ? data?.pasta_nome || null : null,
+            pasta_url: connected ? data?.pasta_url || null : null,
+            conectado_em: connected ? data?.conectado_em || null : null
         };
     });
     res.json({ providers });

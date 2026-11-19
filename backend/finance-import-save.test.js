@@ -25,6 +25,7 @@ function setup() {
             },
             async getAll(...refs) { return refs.map(ref => snapshot(ref.id)); },
             create(ref, data) { writes.push([ref.id, data]); },
+            set(ref, data) { writes.push([ref.id, data]); },
         };
         const result = await work(tx);
         if (fail) throw new Error('Simulação de falha antes do commit');
@@ -33,11 +34,15 @@ function setup() {
     } };
     const firestore = () => db;
     firestore.FieldValue = { serverTimestamp: () => 'timestamp-fictício' };
-    const sandbox = { exports: {}, require: name => name === 'firebase-admin' ? { firestore } : require(name), __dirname, setTimeout, clearTimeout };
+    const cloud = { async validateSource(_email, _uid, source) {
+        if (source.versao !== 'v1') throw Object.assign(new Error('Arquivo mudou.'), { publicMessage: 'Arquivo mudou.', status: 409 });
+        return { ...source, revision: 1, pasta_id: 'pasta-ficticia' };
+    }, internals: { registryId: () => 'registro-ficticio' } };
+    const sandbox = { exports: {}, require: name => name === 'firebase-admin' ? { firestore } : name === './finance-google-drive' ? cloud : require(name), __dirname, setTimeout, clearTimeout };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'finance-import.controller.js'), 'utf8'), sandbox);
     const run = async (body, email = 'exemplo@invalid.test') => {
         const res = { code: 200, status(code) { this.code = code; return this; }, json(data) { this.body = data; return this; } };
-        await sandbox.exports.confirmar({ body, user: { email } }, res); return res;
+        await sandbox.exports.confirmar({ body, user: { email }, firebaseUid: 'uid-ficticio' }, res); return res;
     };
     return { docs, run, fail: () => { fail = true; } };
 }
@@ -76,4 +81,19 @@ test('mesmo identificador com valores divergentes exige revisão', async () => {
     const result = await s.run({ ...body, lancamentos: [line, { ...line, valor: '2.00' }] });
     assert.equal(result.code, 400);
     assert.equal(count(s), 0);
+});
+test('Drive registra a versão na mesma transação dos movimentos', async () => {
+    const s = setup(); addOwner(s);
+    s.docs.set('finance_storage_connections/exemplo@invalid.test__google', { ativo: true, uid: 'uid-ficticio', revision: 1, pasta_id: 'pasta-ficticia' });
+    const result = await s.run({ ...body, drive: { file_id: 'arquivo-ficticio', versao: 'v1' } });
+    assert.equal(result.code, 200);
+    assert.equal(s.docs.get('finance_drive_revisoes/registro-ficticio').versao, 'v1');
+    assert.equal((await s.run({ ...body, drive: { file_id: 'arquivo-ficticio', versao: 'antiga' } })).code, 409);
+    assert.equal(count(s), 1);
+});
+test('Drive desconectado entre a prévia e a confirmação não grava', async () => {
+    const s = setup(); addOwner(s);
+    s.docs.set('finance_storage_connections/exemplo@invalid.test__google', { ativo: false, uid: 'uid-ficticio', revision: 2, pasta_id: 'pasta-ficticia' });
+    const result = await s.run({ ...body, drive: { file_id: 'arquivo-ficticio', versao: 'v1' } });
+    assert.equal(result.code, 500); assert.equal(count(s), 0);
 });

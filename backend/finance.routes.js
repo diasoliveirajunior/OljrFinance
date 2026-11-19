@@ -5,13 +5,16 @@ const ctrl = require('./finance.controller');
 const contasCtrl = require('./finance-contas.controller');
 const cartoesCtrl = require('./finance-cartoes.controller');
 const investCtrl = require('./finance-investimentos.controller');
-const driveCtrl = require('./finance-drive.controller');
 const storageCtrl = require('./finance-storage.controller');
 const importCtrl = require('./finance-import.controller');
+const googleDrive = require('./finance-google-drive');
 const rateLimit = require('express-rate-limit');
+const microsoftOnly = handler => (req, res) => req.params.provider === 'microsoft'
+    ? handler(req, res) : res.status(404).json({ error: 'Provedor não encontrado.' });
 
 // Retorno publico; a identidade e validada pelo state OAuth assinado.
-router.get('/storage/callback/:provider', storageCtrl.callback);
+router.get('/storage/callback/google', googleDrive.callback);
+router.get('/storage/callback/:provider', microsoftOnly(storageCtrl.callback));
 
 // Tudo aqui exige login + painel FINANCE atribuido.
 router.use(requireAuth, requirePanel('FINANCE'));
@@ -59,10 +62,15 @@ router.post('/importar-ofx', ctrl.importarOfx);
 router.post('/importacao/previa', rateLimit({ windowMs: 60000, limit: 10,
     message: { error: 'Aguarde um minuto antes de ler outro arquivo.' } }), importCtrl.previa);
 router.post('/importacao/confirmar', importCtrl.confirmar);
-router.get('/drive/status', driveCtrl.statusDrive);
-router.post('/drive/sincronizar', driveCtrl.sincronizarDrive);
+router.get('/google-drive/status', googleDrive.status);
+router.put('/google-drive/pasta', googleDrive.setFolder);
+router.get('/google-drive/arquivos', googleDrive.list);
+router.get('/drive/status', googleDrive.status);
+router.post('/drive/sincronizar', (_req, res) => res.status(410).json({ error: 'Use Importar extrato > Google Drive. A leitura agora exige pasta, conta de destino e revisão antes de gravar.' }));
 router.get('/storage/status', storageCtrl.status);
-router.post('/storage/connect/:provider', storageCtrl.start);
-router.delete('/storage/connect/:provider', storageCtrl.disconnect);
+router.post('/storage/connect/google', googleDrive.start);
+router.delete('/storage/connect/google', googleDrive.disconnect);
+router.post('/storage/connect/:provider', microsoftOnly(storageCtrl.start));
+router.delete('/storage/connect/:provider', microsoftOnly(storageCtrl.disconnect));
 
 module.exports = router;

@@ -8,7 +8,7 @@ const { Readable } = require('node:stream');
 const scope = 'https://www.googleapis.com/auth/drive.readonly';
 const email = 'ficticio@invalid.test'; const uid = 'uid-ficticio';
 function setup() {
-    const docs = new Map(), files = new Map(); let authOptions; let mutateDownload = false;
+    const docs = new Map(), files = new Map(); let authOptions; let mutateDownload = false; let listOptions;
     const snapshot = ref => ({ exists: docs.has(ref.key), data: () => docs.get(ref.key) });
     const apply = (ref, data, options) => docs.set(ref.key, options?.merge ? { ...docs.get(ref.key), ...data } : data);
     const collection = name => ({ doc(id) {
@@ -36,7 +36,7 @@ function setup() {
             const file = files.get(options.fileId); if (!file) throw new Error('Erro do provedor contendo texto que não deve ser exposto');
             return { data: { ...file } };
         },
-        async list() { return { data: { files: [...files.values()].filter(f => f.parents?.includes('pasta-ficticia')) } }; },
+        async list(options) { listOptions = options; return { data: { files: [...files.values()].filter(f => f.parents?.includes('pasta-ficticia')) } }; },
     } };
     const env = { GOOGLE_DRIVE_CLIENT_ID: 'cliente-ficticio', GOOGLE_DRIVE_CLIENT_SECRET: 'segredo-ficticio',
         FINANCE_TOKEN_ENCRYPTION_KEY: 'chave-ficticia-de-teste', FINANCE_OAUTH_STATE_SECRET: 'estado-ficticio-de-teste' };
@@ -52,7 +52,7 @@ function setup() {
     files.set('pasta-ficticia', { id: 'pasta-ficticia', name: 'Pasta fictícia', mimeType: 'application/vnd.google-apps.folder' });
     files.set('arquivo-ficticio', { id: 'arquivo-ficticio', name: 'exemplo.csv', mimeType: 'text/csv', size: Buffer.byteLength('conteudo-ficticio'), modifiedTime: 'versao1', parents: ['pasta-ficticia'] });
     docs.set(`usuarios/${email}`, { ativo: true, paineis: ['FINANCE'] });
-    return { api, run, docs, files, env, connect, options: () => authOptions, mutate: () => { mutateDownload = true; } };
+    return { api, run, docs, files, env, connect, listOptions: () => listOptions, options: () => authOptions, mutate: () => { mutateDownload = true; } };
 }
 
 test('configuração ausente aparece claramente sem tentar OAuth', async () => {
@@ -109,4 +109,23 @@ test('uma sessão de outra identidade não recebe nem o nome da pasta', async ()
     const result = await s.run('status', {}, {}, email, 'outro-uid');
     assert.equal(result.body.conectado, false);
     assert.equal(result.body.pasta_nome, null);
+});
+
+
+test('navegação visual de pastas não entrega tokens nem aceita outra identidade', async () => {
+ const s = setup(); s.connect();
+ const listed = await s.run('folders', {}, { pai: 'root', busca: "Exemplo' or trashed = true" });
+ assert.equal(listed.code, 200);
+ assert.equal(JSON.stringify(listed.body).includes('token-ficticio'), false);
+ assert.equal(s.listOptions().q.includes("Exemplo' or"), false);
+ assert.equal((await s.run('folders', {}, {}, email, 'outra-identidade')).code, 409);
+ assert.equal((await s.run('folders', {}, { pai: 'https://site-invalido.test/pasta' })).code, 400);
+});
+
+test('renovar consentimento da mesma pessoa preserva pasta e destino', async () => {
+ const s = setup(); s.connect();
+ Object.assign(s.docs.get(`finance_storage_connections/${email}__google`), {automacao:true,conta_id:'conta-ficticia',cartao_id:null});
+ await s.run('start'); await s.run('callback', {}, {state:s.options().state,code:'codigo-ficticio'});
+ const saved = s.docs.get(`finance_storage_connections/${email}__google`);
+ assert.equal(saved.pasta_id,'pasta-ficticia'); assert.equal(saved.conta_id,'conta-ficticia'); assert.equal(saved.automacao,true);
 });

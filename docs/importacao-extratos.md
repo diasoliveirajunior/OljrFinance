@@ -1,6 +1,6 @@
 # Importação de extratos
 
-O Finance lê OFX, Excel `.xlsx`, CSV e PDF com texto selecionável. O arquivo é processado no servidor do Finance, sem envio a um serviço externo. O arquivo original não é armazenado. Só os lançamentos confirmados são gravados.
+O Finance lê OFX, Excel `.xlsx`, CSV e PDF com texto selecionável. O arquivo é processado no servidor do Finance, sem envio a um serviço externo. O arquivo original não é armazenado. Na importação local/manual, só os lançamentos confirmados são gravados. Na sincronização Google Drive ativada pelo usuário, movimentos reconhecidos são gravados automaticamente e as exceções ficam pendentes.
 
 ## Uso
 
@@ -25,8 +25,8 @@ São lidas até 1.000 linhas por arquivo, com até 400 lançamentos por confirma
 
 ## Validação
 
-`node --test backend/finance-import.test.js backend/finance-import-save.test.js backend/finance-google-drive.test.js` usa apenas dados fictícios, incluindo PDFs com texto e planilhas geradas em memória. A confirmação é testada com um substituto do Firestore, sem acessar contas reais. Rodar também `npm run build` e `npm run lint` em `portal`.
+`node --test backend/finance-import.test.js backend/finance-import-save.test.js backend/finance-google-drive.test.js backend/finance-drive-sync.test.js` usa apenas dados fictícios, incluindo PDFs com texto e planilhas geradas em memória. A confirmação é testada com um substituto do Firestore, sem acessar contas reais. Rodar também `npm run build` e `npm run lint` em `portal`.
 
-Para ler pela nuvem, use a aba **Google Drive**. Configuração e limitações em [Google Drive no Finance](../FINANCE_DRIVE_SETUP.md).
+Para sincronizar pela nuvem, use a aba **Google Drive**, escolha a pasta visualmente e ative a automação para o destino. Não é necessário selecionar arquivos individualmente. Configuração e limitações em [Google Drive no Finance](../FINANCE_DRIVE_SETUP.md).
 
 O PR inclui verificações automáticas em Node 22. Não publica: a publicação continua no fluxo existente da `main`, após aprovação e integração.

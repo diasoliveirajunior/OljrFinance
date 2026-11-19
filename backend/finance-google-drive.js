@@ -69,7 +69,9 @@ exports.status = async (req, res) => {
         const data = snapshot.exists ? snapshot.data() : {};
         const connected = Boolean(data.ativo && data.scope === SCOPE && data.uid === req.firebaseUid);
         res.json({ configurado: true, conectado: connected,
-            pasta_nome: connected ? data.pasta_nome || null : null, pasta_url: connected ? data.pasta_url || null : null });
+            pasta_nome: connected ? data.pasta_nome || null : null, pasta_url: connected ? data.pasta_url || null : null,
+            ...(connected ? { automacao: Boolean(data.automacao), conta_id: data.conta_id || null, cartao_id: data.cartao_id || null,
+                ultima_execucao: data.ultima_execucao || null, resultado: data.sync_resultado || null } : {}) });
     } catch (err) { failure(res, err); }
 };
 exports.start = async (req, res) => {
@@ -109,9 +111,12 @@ exports.callback = async (req, res) => {
             const ref = db.collection('finance_storage_connections').doc(connectionId(saved.email));
             const [current, user] = await tx.getAll(ref, db.collection('usuarios').doc(saved.email));
             if ((current.exists ? current.data().revision || 0 : 0) !== saved.revision || !user.exists || !user.data().ativo || !user.data().paineis?.includes('FINANCE')) throw error('Autorização encerrada.');
+            const previous = current.exists && current.data().uid === saved.uid ? current.data() : {};
             tx.set(ref, { email: saved.email, uid: saved.uid, provider: 'google', ativo: true, scope: SCOPE,
                 revision: saved.revision + 1, refresh_token_encrypted: encrypt(result.tokens.refresh_token, saved.email),
-                pasta_id: null, pasta_nome: null, pasta_url: null,
+                pasta_id: previous.pasta_id || null, pasta_nome: previous.pasta_nome || null, pasta_url: previous.pasta_url || null,
+                automacao: Boolean(previous.automacao), conta_id: previous.conta_id || null, cartao_id: previous.cartao_id || null,
+                sync_cursor: null, sync_lease: null, sync_lease_until: 0,
                 conectado_em: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
         });
         await request.delete();
@@ -129,7 +134,8 @@ exports.setFolder = async (req, res) => {
         await admin.firestore().runTransaction(async tx => {
             const current = await tx.get(ref);
             if (!current.exists || !current.data().ativo || current.data().revision !== data.revision) throw error('A conexão mudou. Atualize a tela.', 409);
-            tx.update(ref, { pasta_id: id, pasta_nome: response.data.name, pasta_url: `https://drive.google.com/drive/folders/${id}` });
+            tx.update(ref, { pasta_id: id, pasta_nome: response.data.name, pasta_url: `https://drive.google.com/drive/folders/${id}`,
+                revision: data.revision + 1, automacao: false, sync_cursor: null, sync_resultado: null });
         });
         res.json({ ok: true });
     } catch (err) { failure(res, err); }
@@ -197,10 +203,28 @@ exports.disconnect = async (req, res) => {
         await admin.firestore().runTransaction(async tx => {
             const ref = admin.firestore().collection('finance_storage_connections').doc(connectionId(req.user.email));
             const snapshot = await tx.get(ref);
-            tx.set(ref, { ativo: false, revision: (snapshot.exists ? snapshot.data().revision || 0 : 0) + 1,
+            tx.set(ref, { ativo: false, automacao: false, revision: (snapshot.exists ? snapshot.data().revision || 0 : 0) + 1,
                 refresh_token_encrypted: admin.firestore.FieldValue.delete(), pasta_id: null, pasta_nome: null, pasta_url: null }, { merge: true });
         });
         res.json({ ok: true });
     } catch (err) { failure(res, err); }
 };
 exports.internals = { encrypt, decrypt, folderId, supported, validateFile, registryId, SCOPE, configured };
+
+// Navegador de pastas no próprio Finance; não expõe access_token ao navegador.
+exports.folders = async (req, res) => {
+    try {
+        const { drive, data } = await access(req.user.email);
+        if (data.uid !== req.firebaseUid) throw error('Reconecte o Google Drive nesta sessão.', 409);
+        const parent = req.query.pai === 'root' || !req.query.pai ? 'root' : folderId(req.query.pai);
+        const page = String(req.query.pagina || '');
+        if (page.length > 2048) throw error('Página inválida.');
+        const search = String(req.query.busca || '').trim().slice(0, 100).replace(/['\\]/g, '');
+        const q = `trashed = false and mimeType = 'application/vnd.google-apps.folder' and ` +
+            (search ? `name contains '${search}'` : `'${parent}' in parents`);
+        const result = await drive.files.list({ q, fields: 'nextPageToken,files(id,name)', pageSize: 100,
+            pageToken: page || undefined, orderBy: 'name', supportsAllDrives: true, includeItemsFromAllDrives: true }, { timeout: 15000 });
+        res.json({ pastas: (result.data.files || []).map(f => ({ id: f.id, nome: f.name })), proxima_pagina: result.data.nextPageToken || null });
+    } catch (err) { failure(res, err); }
+};
+exports.access = access;

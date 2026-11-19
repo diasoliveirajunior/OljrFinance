@@ -113,7 +113,7 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
         <Dialog.Title>Importar extrato</Dialog.Title>
         <button type="button" className="ff-icon-btn" aria-label="Fechar importação" onClick={fechar} disabled={busy}><X className="size-4" /></button>
       </div>
-      <Dialog.Description className="ff-import-help">Leia do computador ou do Google Drive, confira os lançamentos e confirme os selecionados.</Dialog.Description>
+      <Dialog.Description className="ff-import-help">{source === "drive" ? "Escolha uma pasta e deixe o Finance ler e lançar os movimentos reconhecidos automaticamente." : "Leia do computador, confira os lançamentos e confirme os selecionados."}</Dialog.Description>
       <div className="ff-filters" aria-label="Origem do extrato">
         <button type="button" className={`ff-chip ${source === "computador" ? "is-active" : ""}`} disabled={busy} onClick={() => { resetFile(); setSource("computador") }}><Upload className="size-4" /> Do computador</button>
         <button type="button" className={`ff-chip ${source === "drive" ? "is-active" : ""}`} disabled={busy} onClick={() => { resetFile(); setSource("drive") }}><Cloud className="size-4" /> Google Drive</button>
@@ -133,7 +133,8 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
       </div>
       {source === "drive" && <details className="ff-import-mapping-panel" open={file ? undefined : true}>
         <summary>Google Drive: conexão, pasta e arquivos</summary>
-        <GoogleDriveSource destino={destino} ocupado={busy} limpar={resetFile} escolher={chosen => {
+        <GoogleDriveSource destino={destino} destinos={targets} ocupado={busy} limpar={resetFile} escolher={(chosen, target) => {
+          setDestino(target)
         resetFile(); setReading(true)
         const payload = { nome: chosen.nome, drive_file_id: chosen.id }
         setFile(payload); void readFile(payload, ++request.current)
@@ -201,10 +202,10 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
       {error && <p role="alert" className="ff-alert ff-alert--danger">{error}</p>}
       {success && <p role="status" className="ff-alert ff-alert--ok"><CheckCircle2 className="size-4" /> {success}</p>}
       <div className="ff-modal-actions">
-        <button type="button" className="ff-btn ff-btn--ghost" onClick={fechar} disabled={busy}>{success ? "Fechar" : "Cancelar"}</button>
-        <button type="button" className="ff-btn ff-btn--primary" disabled={busy || !destino || !selected.length || !!invalid || selected.length > 400 || !confirmed} onClick={() => void save()}>
+        <button type="button" className="ff-btn ff-btn--ghost" onClick={fechar} disabled={busy}>{success || source === "drive" && !preview ? "Fechar" : "Cancelar"}</button>
+        {(source !== "drive" || preview) && <button type="button" className="ff-btn ff-btn--primary" disabled={busy || !destino || !selected.length || !!invalid || selected.length > 400 || !confirmed} onClick={() => void save()}>
           {saving ? <Loader2 className="size-4 animate-spin" /> : <FileInput className="size-4" />}Importar {selected.length || ""} selecionado(s)
-        </button>
+        </button>}
       </div>
     </Dialog.Content>
   </Dialog.Root>

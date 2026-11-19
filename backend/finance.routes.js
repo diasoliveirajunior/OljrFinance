@@ -8,6 +8,7 @@ const investCtrl = require('./finance-investimentos.controller');
 const storageCtrl = require('./finance-storage.controller');
 const importCtrl = require('./finance-import.controller');
 const googleDrive = require('./finance-google-drive');
+const driveSync = require('./finance-drive-sync');
 const rateLimit = require('express-rate-limit');
 const microsoftOnly = handler => (req, res) => req.params.provider === 'microsoft'
     ? handler(req, res) : res.status(404).json({ error: 'Provedor não encontrado.' });
@@ -63,6 +64,11 @@ router.post('/importacao/previa', rateLimit({ windowMs: 60000, limit: 10,
     message: { error: 'Aguarde um minuto antes de ler outro arquivo.' } }), importCtrl.previa);
 router.post('/importacao/confirmar', importCtrl.confirmar);
 router.get('/google-drive/status', googleDrive.status);
+router.get('/google-drive/pastas', googleDrive.folders);
+router.put('/google-drive/automacao', driveSync.configure);
+router.post('/google-drive/sincronizar', rateLimit({ windowMs: 60000, max: 6 }), driveSync.runNow);
+router.get('/google-drive/pendencias', driveSync.pending);
+router.post('/google-drive/pendencias/resolver', driveSync.resolve);
 router.put('/google-drive/pasta', googleDrive.setFolder);
 router.get('/google-drive/arquivos', googleDrive.list);
 router.get('/drive/status', googleDrive.status);

@@ -1,8 +1,24 @@
 const admin = require('firebase-admin');
 const path = require('node:path');
 const { Worker } = require('node:worker_threads');
-const { validateRows, hash } = require('./finance-import');
+const { validateRows, hash, transactionSignature } = require('./finance-import');
 let activePreviews = 0;
+let activeWorkers = 0;
+
+async function readPreview(payload) {
+    if (activeWorkers >= 2) throw new Error('Não foi possível iniciar a leitura agora. Há outras leituras em andamento.');
+    activeWorkers++;
+    try { return await new Promise((resolve, reject) => {
+            const worker = new Worker(path.join(__dirname, 'finance-import-worker.js'), {
+                workerData: payload, resourceLimits: { maxOldGenerationSizeMb: 192, maxYoungGenerationSizeMb: 32 },
+            });
+            const timer = setTimeout(() => { void worker.terminate(); reject(new Error('Leitura demorou demais. Divida o arquivo ou exporte CSV/OFX.')); }, 25000);
+            worker.once('message', message => { clearTimeout(timer); void worker.terminate(); message.error ? reject(new Error(message.error)) : resolve(message.result); });
+            worker.once('error', () => { clearTimeout(timer); reject(new Error('Não foi possível ler o arquivo. Confira o formato e tente um arquivo menor.')); });
+            worker.once('exit', code => { clearTimeout(timer); if (code !== 0) reject(new Error('Não foi possível concluir a leitura. Tente um arquivo menor.')); });
+        }); } finally { activeWorkers--; }
+}
+exports.readPreview = readPreview;
 
 exports.previa = async (req, res) => {
     if (activePreviews >= 2) return res.status(429).json({ error: 'Há outras leituras em andamento. Aguarde alguns segundos e tente novamente.' });
@@ -13,15 +29,7 @@ exports.previa = async (req, res) => {
             source = await require('./finance-google-drive').download(req.user.email, req.firebaseUid, req.body.drive_file_id);
             payload = { ...req.body, nome: source.nome, arquivo: source.arquivo };
         }
-        const result = await new Promise((resolve, reject) => {
-            const worker = new Worker(path.join(__dirname, 'finance-import-worker.js'), {
-                workerData: payload, resourceLimits: { maxOldGenerationSizeMb: 192, maxYoungGenerationSizeMb: 32 },
-            });
-            const timer = setTimeout(() => { void worker.terminate(); reject(new Error('Leitura demorou demais. Divida o arquivo ou exporte CSV/OFX.')); }, 25000);
-            worker.once('message', message => { clearTimeout(timer); void worker.terminate(); message.error ? reject(new Error(message.error)) : resolve(message.result); });
-            worker.once('error', () => { clearTimeout(timer); reject(new Error('Não foi possível ler o arquivo. Confira o formato e tente um arquivo menor.')); });
-            worker.once('exit', code => { clearTimeout(timer); if (code !== 0) reject(new Error('Não foi possível concluir a leitura. Tente um arquivo menor.')); });
-        });
+        const result = await readPreview(payload);
         res.json({ ...result, ...(source ? { drive: source.drive } : {}) });
     } catch (error) {
         // Mensagens de bibliotecas podem conter trechos do arquivo; devolvemos apenas erros conhecidos.
@@ -67,6 +75,16 @@ exports.confirmar = async (req, res) => {
                 const state = connection.exists ? connection.data() : null;
                 if (!state?.ativo || state.revision !== cloud.revision || state.pasta_id !== cloud.pasta_id || state.uid !== req.firebaseUid) throw new Error('Conexão alterada durante a confirmação');
             }
+            if (req.automaticGuard) {
+                const state = (await tx.get(db.collection('finance_storage_connections').doc(`${email}__google`))).data();
+                const user = await tx.get(db.collection('usuarios').doc(email));
+                const u = user.exists ? user.data() : null;
+                if (!u?.ativo || !u.paineis?.includes('FINANCE') ||
+                    (u.papel === 'convidado' && u.expira_em && Date.now() > new Date(u.expira_em).getTime()) ||
+                    !state?.automacao || state.revision !== req.automaticGuard.revision ||
+                    state.sync_lease !== req.automaticGuard.lease || state.sync_lease_until < Date.now() ||
+                    state.conta_id !== (conta || null) || state.cartao_id !== (cartao || null)) throw new Error('Automação encerrada');
+            }
             const entries = [...unique.entries()];
             const existing = await tx.getAll(...entries.map(([id]) => collection.doc(`import_${id}`)));
             // Compatibilidade com OFX gravado antes desta entrega, sempre respeitando o destino.
@@ -79,6 +97,22 @@ exports.confirmar = async (req, res) => {
                     if ((data.conta_id || '') === conta && (data.cartao_id || '') === cartao) legacy.add(data.ofx_fitid);
                 });
             }
+            if (req.automaticGuard) {
+                const dates = [...new Set(rows.map(r => r.data))];
+                const signatures = new Set(rows.map(transactionSignature));
+                for (let i = 0; i < dates.length; i += 30) {
+                    const current = await tx.get(collection.where('email', '==', email).where('data', 'in', dates.slice(i, i + 30)));
+                    current.forEach(doc => {
+                        const r = doc.data();
+                        if ((r.conta_id || '') === conta && (r.cartao_id || '') === cartao &&
+                            !(r.origem === formato && (r.drive_file_id === cloud.file_id || rows.some(row => row.sourceId === r.import_source_id))) &&
+                            signatures.has(transactionSignature(r))) throw new Error('Possível repetição concorrente');
+                    });
+                }
+            }
+            // Serializa importações manuais e automáticas no mesmo destino. Uma gravação concorrente
+            // provoca nova leitura da transação, incluindo a verificação de possíveis repetições.
+            tx.update(target, { import_revision: Number(owner.data().import_revision || 0) + 1 });
             let imported = 0;
             entries.forEach(([id, r], i) => {
                 if (existing[i].exists || (formato === 'ofx' && r.fitid && legacy.has(r.fitid))) return;

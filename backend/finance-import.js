@@ -85,8 +85,12 @@ const aliases = {
     saldo: ['saldo', 'saldo r$', 'saldo atual', 'saldo apos lancamento'],
 };
 const headerKey = value => normalize(value).replace(/r\$/g, '').replace(/[^a-z0-9]/g, '');
+// Bancos também escrevem S A L D O; normaliza só o rótulo inicial, sem
+// confundir descrições como "Pagamento do saldo do contrato" com posição da conta.
+const balanceText = value => normalize(value).replace(/^s\s*a\s*l\s*d\s*o(?=\s|$)/, 'saldo');
+const isBalance = value => /^saldo(?:\s|$)/.test(balanceText(value));
 function balanceLabel(value) {
-    return /^(saldo(?:\s|$)|total(?:\s+(?:(?:de|das|dos)\s+)?(?:entradas|saidas|creditos|debitos|receitas|despesas|geral|do dia)|$))/.test(normalize(value));
+    return /^(saldo(?:\s|$)|total(?:\s+(?:(?:de|das|dos)\s+)?(?:entradas|saidas|creditos|debitos|receitas|despesas|geral|do dia)|$))/.test(balanceText(value));
 }
 
 function tablePreview(tables, options, category) {
@@ -126,7 +130,7 @@ function tablePreview(tables, options, category) {
     const dates = entries.filter(e => !balanceLabel(e.raw.descricao)).map(e => date(e.raw.data)).filter(Boolean);
     let ascending = false, descending = false;
     dates.forEach((value, i) => { if (i) { if (value > dates[i - 1]) ascending = true; if (value < dates[i - 1]) descending = true; } });
-    const opening = entries.findIndex(e => /^saldo\s+(anterior|inicial)\b/.test(normalize(e.raw.descricao)));
+    const opening = entries.findIndex(e => /^saldo\s+(anterior|inicial)\b/.test(balanceText(e.raw.descricao)));
     const reverse = descending && !ascending || !ascending && !descending && opening > 0 && opening === entries.length - 1;
     const sequential = !(ascending && descending) && (ascending || descending || opening === 0 || opening > 0 && opening === entries.length - 1);
     const iteration = reverse ? [...entries].reverse() : entries;
@@ -134,7 +138,7 @@ function tablePreview(tables, options, category) {
         const balance = validColumn(mapping.saldo) ? money(raw.saldo) : null;
         if (balanceLabel(raw.descricao) || balanceLabel(raw.tipo)) {
             // Um saldo é posição da conta. Um total é apenas resumo; nenhum vira movimentação.
-            if (/^saldo(?:\s|$)/.test(normalize(raw.descricao)) || /^saldo(?:\s|$)/.test(normalize(raw.tipo))) {
+            if (isBalance(raw.descricao) || isBalance(raw.tipo)) {
                 const value = balance ?? (hasValue ? money(raw.valor) : null);
                 saldos.push({ data: date(raw.data), descricao: clean(raw.descricao), valor: value });
                 if (value !== null) {
@@ -220,7 +224,7 @@ async function pdf(buffer, category) {
     try {
         document = await task.promise;
         if (document.numPages > 30) throw new Error('PDF com mais de 30 páginas. Divida o arquivo.');
-        const rows = [], ignored = []; let textLength = 0;
+        const rows = [], ignored = [], saldos = []; let textLength = 0;
         for (let p = 1; p <= document.numPages; p++) {
             const page = await document.getPage(p);
             const content = await page.getTextContent();
@@ -239,15 +243,20 @@ async function pdf(buffer, category) {
                 const text = line.items.sort((a, b) => a.x - b.x).map(i => i.text).join(' ').trim();
                 if (!/^\d{2}[/.]\d{2}(?:[/.]\d{4})?\b|^\d{4}-\d{2}-\d{2}\b/.test(text)) continue;
                 const match = /^(\d{2}[/.]\d{2}[/.]\d{4}|\d{4}-\d{2}-\d{2})\s+(.+?)\s+(?:R\$\s*)?([+-]?(?:\d{1,3}(?:\.\d{3})*|\d+),\d{2})(?:\s*([CD]))?$/i.exec(text);
-                if (!match || /\bsaldo\b|\btotal\b/i.test(match[2]) || /\d[.,]\d{2}\b/.test(match[2])) { ignored.push(p); continue; }
+                if (match && balanceLabel(match[2])) {
+                    if (isBalance(match[2])) saldos.push({ data: date(match[1]), descricao: match[2],
+                        valor: /\d[.,]\d{2}\b/.test(match[2]) ? null : money(`${match[3]}${match[4] || ''}`) });
+                    continue;
+                }
+                if (!match || /\d[.,]\d{2}\b/.test(match[2])) { ignored.push(p); continue; }
                 rows.push(row({ data: match[1], descricao: match[2], valor: match[3], tipo: match[4] || (match[3].startsWith('+') ? 'receita' : '') }, hash(`${p}:${text}:${rows.length}`), category));
                 if (rows.length > MAX_ROWS) throw new Error('PDF com mais de 1.000 lançamentos. Divida o arquivo.');
             }
         }
         if (!textLength) throw new Error('PDF sem texto selecionável (escaneado). Exporte OFX, Excel ou CSV do banco.');
-        if (!rows.length) throw new Error('Não foi possível identificar os lançamentos com segurança neste PDF. Prefira OFX, Excel ou CSV. Datas precisam incluir o ano e cada linha deve ter um único valor.');
-        return { rows, automaticIssues: ignored.length > 0, avisos: ['A leitura de PDF depende do formato do banco. Compare os lançamentos e totais com o documento original antes de confirmar.',
-            ...(ignored.length ? [`${ignored.length} linha(s) com data não foram convertidas (incluindo saldos, totais ou colunas ambíguas). Confira o PDF original.`] : [])] };
+        if (!rows.length && !saldos.length) throw new Error('Não foi possível identificar os lançamentos com segurança neste PDF. Prefira OFX, Excel ou CSV. Datas precisam incluir o ano e cada linha deve ter um único valor.');
+        return { rows, saldos, automaticIssues: ignored.length > 0, avisos: ['A leitura de PDF depende do formato do banco. Compare os lançamentos e totais com o documento original antes de confirmar.',
+            ...(ignored.length ? [`${ignored.length} linha(s) com data não foram convertidas (estrutura ou colunas ambíguas). Confira o PDF original.`] : [])] };
     } finally { await task.destroy(); }
 }
 
@@ -287,8 +296,8 @@ async function preview(body, category) {
         });
         if (body.automatico) {
             const previews = tables.map((_, aba) => tablePreview(tables, { ...body, aba }, category));
-            result = { rows: previews.flatMap(p => p.rows), avisos: [],
-                automaticIssues: previews.some((p, i) => !p.rows.length && tables[i].rows.some(r => r.some(c => date(c)))),
+            result = { rows: previews.flatMap(p => p.rows), saldos: previews.flatMap(p => p.saldos), avisos: [],
+                automaticIssues: previews.some((p, i) => !p.rows.length && !p.saldos.length && tables[i].rows.some(r => r.some(c => date(c)))),
                 conferencia: { linhas_divergentes: previews.flatMap(p => p.conferencia.linhas_divergentes) } };
         } else result = tablePreview(tables, body, category);
         result.avisos.push('Células com fórmulas não são importadas. Cole os resultados como valores antes de enviar.');

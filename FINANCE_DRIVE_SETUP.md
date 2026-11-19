@@ -19,7 +19,7 @@ A primeira execução começa ao ativar. A rotina verifica novamente aproximadam
 - Em **Resolver pendência**, usa-se a revisão manual existente. **Encerrar pendência** ignora esta versão sem gravar nem apagar movimentos. A lista mostra até 100 arquivos por situação; encerrando pendências surgem as próximas.
 - Falhas de leitura são tentadas novamente nas verificações seguintes. Arquivos incompatíveis aparecem como ignorados e não são baixados.
 
-Um saldo é posição da conta e não vira receita/despesa. A categorização automática usa as regras locais existentes; categorias podem ser corrigidas depois.
+Um saldo é posição da conta e não vira receita/despesa, inclusive quando o banco escreve `S A L D O`. Arquivos reconhecidos contendo apenas saldo não exigem tipo nem geram pendência por falta de movimentos. Pendências de versões antigas do leitor são reavaliadas automaticamente uma vez; versões encerradas explicitamente não são reabertas. Lançamentos anteriores e o saldo inicial cadastrado não são alterados por essa correção. A categorização automática usa as regras locais existentes; categorias podem ser corrigidas depois.
 
 ## Formatos e limites
 

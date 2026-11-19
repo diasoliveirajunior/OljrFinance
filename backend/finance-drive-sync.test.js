@@ -152,3 +152,30 @@ test('importação de outra origem durante a leitura não escapa da conferência
  const result = await s.engine.run(email,uid); assert.equal(count(s),1); assert.equal(result.arquivos[0].estado,'erro');
  s.beforeSave(null); const retry = await s.engine.run(email,uid); assert.equal(count(s),1); assert.equal(retry.pendentes,1);
 });
+
+
+test('sincronização reavalia pendência antiga de saldo sem exigir tipo ou criar lançamento', async () => {
+    const s = setup(); s.files.splice(1);
+    const job = `${s.connectionKey}/sync_arquivos/${hash(JSON.stringify(['pasta-ficticia', 'conta-ficticia', null, s.files[0].id]))}`;
+    s.docs.set(job, { versao: 'v1', revision: 1, estado: 'pendente', pendentes: 1 });
+    s.importer.readPreview = async () => ({ formato: 'xlsx', rows: [], saldos: [{ data: '2026-11-19', descricao: 'S A L D O', valor: 27 }] });
+    const result = await s.engine.run(email, uid);
+    assert.equal(result.pendentes, 0); assert.equal(count(s), 0); assert.equal(s.downloads(), 1);
+    assert.equal(s.docs.get(job).estado, 'concluido');
+    await s.engine.run(email, uid); assert.equal(s.downloads(), 1);
+});
+
+test('correção do leitor não reabre uma versão encerrada explicitamente pela pessoa', async () => {
+    const s = setup(); s.files.splice(1);
+    const job = `${s.connectionKey}/sync_arquivos/${hash(JSON.stringify(['pasta-ficticia', 'conta-ficticia', null, s.files[0].id]))}`;
+    s.docs.set(job, { versao: 'v1', revision: 1, estado: 'resolvido' });
+    await s.engine.run(email, uid); assert.equal(s.downloads(), 0);
+});
+
+
+test('saldo reconhecido não esconde linhas de movimentos que o PDF não conseguiu ler', async () => {
+    const s = setup(); s.files.splice(1);
+    s.importer.readPreview = async () => ({ formato: 'pdf', rows: [], saldos: [{ descricao: 'SALDO', valor: 27 }], automaticIssues: true });
+    const result = await s.engine.run(email, uid);
+    assert.equal(result.pendentes, 1); assert.equal(result.arquivos[0].estado, 'pendente'); assert.equal(count(s), 0);
+});

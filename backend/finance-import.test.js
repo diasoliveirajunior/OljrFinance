@@ -60,7 +60,7 @@ test('XLSX permite escolher aba e títulos; não executa fórmulas', async () =>
 
 // PDF mínimo com texto real em uma página. Sem anexos, imagens ou dados pessoais.
 function pdfFixture(text) {
-    const stream = `BT /F1 12 Tf 40 750 Td (${text}) Tj ET`;
+    const stream = (Array.isArray(text) ? text : [text]).map((line, i) => `BT /F1 12 Tf 40 ${750 - i * 20} Td (${line}) Tj ET`).join('\n');
     const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
         '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
         '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`];
@@ -148,3 +148,33 @@ test('títulos bancários com moeda reconhecem crédito e débito separados', as
 });
 
 module.exports = { pdfFixture };
+
+
+test('saldo com letras espaçadas nunca exige tipo; pagamentos que mencionam saldo continuam movimentos', async () => {
+    const result = await preview(file('ficticio.csv', 'Data;Descrição;Valor;Tipo\n19/11/2026;S A L D O;-27,00;\n19/11/2026;S A L D O anterior;27,00;C\n19/11/2026;Pagamento do saldo do contrato;3,00;D'), category);
+    assert.equal(result.saldos.length, 2);
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].tipo, 'despesa');
+    assert.equal(result.rows[0].descricao, 'Pagamento do saldo do contrato');
+});
+
+test('planilha apenas com saldo é referência também na leitura automática de todas as abas', async () => {
+    const ExcelJS = require('exceljs'); const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Referência').addRows([['Data', 'Histórico', 'Valor'], ['19/11/2026', 'S A L D O', 27]]);
+    const payload = file('ficticio.xlsx', await wb.xlsx.writeBuffer());
+    for (const automatico of [false, true]) {
+        const result = await preview({ ...payload, automatico }, category);
+        assert.equal(result.rows.length, 0); assert.equal(result.saldos.length, 1);
+        assert.equal(Boolean(result.automaticIssues), false);
+    }
+});
+
+test('PDF com saldo normal ou espaçado não gera pendência de tipo nem bloqueia movimentos válidos', async () => {
+    for (const label of ['SALDO', 'S A L D O', 'S A L D O ANTERIOR']) {
+        const result = await preview(file('ficticio.pdf', pdfFixture([`19/11/2026 ${label} 27,00`, '19/11/2026 Pagamento ficticio -3,00'])), category);
+        assert.equal(result.rows.length, 1); assert.equal(result.saldos.length, 1);
+        assert.equal(result.rows[0].tipo, 'despesa'); assert.equal(result.automaticIssues, false);
+    }
+    const balanceOnly = await preview(file('ficticio.pdf', pdfFixture('19/11/2026 S A L D O 27,00')), category);
+    assert.equal(balanceOnly.rows.length, 0); assert.equal(balanceOnly.saldos.length, 1); assert.equal(balanceOnly.automaticIssues, false);
+});

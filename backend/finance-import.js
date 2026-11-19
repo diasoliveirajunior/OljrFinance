@@ -76,38 +76,122 @@ function csv(content) {
 }
 
 const aliases = {
-    data: ['data', 'date', 'data lancamento', 'data da transacao', 'data de lancamento'],
+    data: ['data', 'date', 'data lancamento', 'data da transacao', 'data de lancamento', 'data movimento', 'dt movimento'],
     descricao: ['descricao', 'historico', 'description', 'lancamento', 'estabelecimento'],
     valor: ['valor', 'amount', 'valor r$', 'valor da transacao'],
-    tipo: ['tipo', 'type', 'natureza', 'entrada/saida'], categoria: ['categoria', 'category'],
+    tipo: ['tipo', 'type', 'natureza', 'entrada/saida', 'credito/debito', 'debito/credito', 'c/d', 'd/c', 'tipo lancamento'], categoria: ['categoria', 'category'],
+    entrada: ['entrada', 'entradas', 'credito', 'creditos', 'valor credito', 'recebimentos'],
+    saida: ['saida', 'saidas', 'debito', 'debitos', 'valor debito', 'pagamentos'],
+    saldo: ['saldo', 'saldo r$', 'saldo atual', 'saldo apos lancamento'],
 };
+const headerKey = value => normalize(value).replace(/r\$/g, '').replace(/[^a-z0-9]/g, '');
+function balanceLabel(value) {
+    return /^(saldo(?:\s|$)|total(?:\s+(?:(?:de|das|dos)\s+)?(?:entradas|saidas|creditos|debitos|receitas|despesas|geral|do dia)|$))/.test(normalize(value));
+}
 
 function tablePreview(tables, options, category) {
     const index = Number(options.aba ?? 0);
     const table = tables[index];
     if (!table) throw new Error('Escolha uma aba válida.');
     let header = Number(options.cabecalho ?? -1);
-    if (header < 0) header = table.rows.findIndex(cells => cells.some(c => aliases.data.includes(normalize(c))));
+    if (header < 0) header = table.rows.findIndex(cells => cells.some(c => aliases.data.some(name => headerKey(name) === headerKey(c))));
     if (header < 0) header = 0;
     if (!Number.isInteger(header) || header < 0 || header >= table.rows.length) throw new Error('Linha de cabeçalho inválida.');
     const columns = table.rows[header].map((c, i) => clean(c).slice(0, 100) || `Coluna ${i + 1}`);
-    const mapping = options.colunas || Object.fromEntries(Object.entries(aliases).map(([key, names]) => [key, columns.findIndex(c => names.includes(normalize(c)))]));
-    const required = ['data', 'descricao', 'valor'];
+    const mapping = { ...Object.fromEntries(Object.entries(aliases).map(([key, names]) => [key, columns.findIndex(c => names.some(name => headerKey(name) === headerKey(c)))])), ...options.colunas };
+    const required = ['data', 'descricao'];
     const validColumn = value => Number.isInteger(value) && value >= 0 && value < columns.length;
-    if (options.colunas && (!required.every(k => validColumn(mapping[k])) || new Set(required.map(k => mapping[k])).size !== 3)) {
-        throw new Error('Escolha colunas diferentes para data, descrição e valor.');
+    const hasValue = validColumn(mapping.valor);
+    const hasFlows = validColumn(mapping.entrada) || validColumn(mapping.saida);
+    const ready = required.every(k => validColumn(mapping[k])) && (hasValue || hasFlows);
+    const chosen = Object.values(mapping).filter(validColumn);
+    if (options.colunas && (!ready || new Set(chosen).size !== chosen.length)) {
+        throw new Error('Escolha colunas diferentes para data, descrição, valor ou entrada/saída e saldo.');
     }
     const body = table.rows.slice(header + 1).filter(cells => cells.some(c => clean(c)));
     if (body.length > MAX_ROWS) throw new Error('Divida a planilha em arquivos com até 1.000 lançamentos.');
     const occurrences = new Map();
-    const rows = required.every(k => validColumn(mapping[k])) ? body.map(cells => {
+    const rows = [], saldos = [], divergencias = [];
+    let previousBalance = null, checked = 0;
+    const signedValues = hasValue && body.some(cells => !balanceLabel(cells[mapping.descricao]) && !balanceLabel(cells[mapping.tipo]) && (money(cells[mapping.valor]) ?? 0) < 0);
+    const entries = ready ? body.map((cells, index) => {
         const raw = Object.fromEntries(Object.keys(aliases).map(key => [key, cells[mapping[key]] ?? '']));
-        const base = hash(JSON.stringify(raw));
+        // Mantém os identificadores da primeira versão para não duplicar arquivos já importados.
+        const original = Object.fromEntries(['data', 'descricao', 'valor', 'tipo', 'categoria'].map(key => [key, raw[key]]));
+        if (!hasValue) Object.assign(original, { entrada: raw.entrada, saida: raw.saida });
+        const base = hash(JSON.stringify(original));
         const count = (occurrences.get(base) || 0) + 1; occurrences.set(base, count);
-        return row(raw, `${base}:${count}`, category);
+        return { raw, index, sourceId: `${base}:${count}` };
     }) : [];
+    const dates = entries.filter(e => !balanceLabel(e.raw.descricao)).map(e => date(e.raw.data)).filter(Boolean);
+    let ascending = false, descending = false;
+    dates.forEach((value, i) => { if (i) { if (value > dates[i - 1]) ascending = true; if (value < dates[i - 1]) descending = true; } });
+    const opening = entries.findIndex(e => /^saldo\s+(anterior|inicial)\b/.test(normalize(e.raw.descricao)));
+    const reverse = descending && !ascending || !ascending && !descending && opening > 0 && opening === entries.length - 1;
+    const sequential = !(ascending && descending) && (ascending || descending || opening === 0 || opening > 0 && opening === entries.length - 1);
+    const iteration = reverse ? [...entries].reverse() : entries;
+    iteration.forEach(({ raw, index, sourceId }) => {
+        const balance = validColumn(mapping.saldo) ? money(raw.saldo) : null;
+        if (balanceLabel(raw.descricao) || balanceLabel(raw.tipo)) {
+            // Um saldo é posição da conta. Um total é apenas resumo; nenhum vira movimentação.
+            if (/^saldo(?:\s|$)/.test(normalize(raw.descricao)) || /^saldo(?:\s|$)/.test(normalize(raw.tipo))) {
+                const value = balance ?? (hasValue ? money(raw.valor) : null);
+                saldos.push({ data: date(raw.data), descricao: clean(raw.descricao), valor: value });
+                if (value !== null) {
+                    const cents = Math.round(value * 100);
+                    if (sequential && previousBalance !== null && /final|atual|do dia/.test(normalize(raw.descricao))) {
+                        checked++; if (previousBalance !== cents) divergencias.push(index + header + 2);
+                    }
+                    previousBalance = cents;
+                }
+            }
+            return;
+        }
+        const explicit = type(raw.tipo);
+        let amount = hasValue ? money(raw.valor) : null;
+        let direction = explicit, explanation = explicit ? 'Tipo informado no arquivo' : '';
+        if (hasFlows) {
+            const incoming = money(raw.entrada), outgoing = money(raw.saida);
+            const inEmpty = !clean(raw.entrada) || incoming === 0, outEmpty = !clean(raw.saida) || outgoing === 0;
+            if (incoming !== null && incoming > 0 && outEmpty) { amount = incoming; direction = 'receita'; explanation = 'Coluna de entrada'; }
+            else if (outgoing !== null && outgoing !== 0 && inEmpty) { amount = Math.abs(outgoing); direction = 'despesa'; explanation = 'Coluna de saída'; }
+            else { amount = null; direction = ''; explanation = 'Confira as colunas de entrada e saída'; }
+            if (explicit && direction && explicit !== direction) { direction = ''; explanation = 'Tipo e coluna de valor divergentes'; }
+        } else if (!explicit && amount !== null) {
+            const delta = sequential && previousBalance !== null && balance !== null ? Math.round(balance * 100) - previousBalance : null;
+            if (delta !== null && Math.abs(delta) === Math.round(Math.abs(amount) * 100) && delta !== 0) {
+                direction = delta > 0 ? 'receita' : 'despesa'; explanation = 'Conferido pela sequência de saldos';
+            } else if (options.convencao === 'positivo_saida') {
+                direction = amount > 0 ? 'despesa' : 'receita'; explanation = 'Convenção de sinais escolhida';
+            } else if (options.convencao === 'positivo_entrada' || amount < 0 || signedValues || /^[+]/.test(clean(raw.valor)) || /[CD]$/i.test(clean(raw.valor))) {
+                direction = amount < 0 ? 'despesa' : 'receita'; explanation = 'Sinal ou código do valor';
+            }
+        }
+        const parsed = row({ ...raw, valor: amount, tipo: direction }, sourceId, category);
+        // row() tem fallback pelo sinal; conflitos devem continuar pendentes de revisão.
+        parsed.tipo = direction;
+        parsed.identificado_por = explanation;
+        parsed.saldo_apos = balance;
+        rows.push({ ...parsed, _order: index });
+        const amountCents = amount === null ? null : Math.round(Math.abs(amount) * 100);
+        if (sequential && previousBalance !== null && balance !== null && amountCents !== null && !direction) {
+            checked++; divergencias.push(index + header + 2);
+        }
+        if (sequential && previousBalance !== null && amountCents !== null && direction && parsed.data) {
+            const expected = previousBalance + (direction === 'receita' ? amountCents : -amountCents);
+            if (balance !== null) {
+                checked++;
+                if (expected !== Math.round(balance * 100)) divergencias.push(index + header + 2);
+            }
+            previousBalance = balance === null ? expected : Math.round(balance * 100);
+        } else previousBalance = balance === null ? null : Math.round(balance * 100);
+    });
+    rows.sort((a, b) => a._order - b._order); rows.forEach(r => { delete r._order; });
     return { rows, abas: tables.map(t => t.name), aba: index, cabecalho: header, colunas: columns, mapeamento: mapping,
-        avisos: ['Confira as colunas e o tipo de cada lançamento. Valores positivos sem tipo precisam de indicação de entrada ou saída.'],
+        saldos, conferencia: { verificadas: checked, linhas_divergentes: divergencias },
+        avisos: [...(rows.some(r => !r.tipo) ? ['Há movimentos sem direção definida. Confira as linhas destacadas ou ajuste a leitura das colunas.'] : []),
+            ...(!sequential && validColumn(mapping.saldo) && rows.length > 1 ? ['A ordem cronológica dos saldos não ficou definida. Eles não foram usados para inferir a direção dos movimentos.'] : []),
+            ...(divergencias.length ? [`Saldo divergente em ${divergencias.length} linha(s). Compare com o arquivo original antes de confirmar.`] : [])],
         amostra: body.slice(0, 3).map(cells => cells.map(c => clean(c).slice(0, 100))) };
 }
 
@@ -122,7 +206,11 @@ function ofx(content, category) {
     });
     if (rows.length > MAX_ROWS) throw new Error('Divida o OFX em arquivos com até 1.000 lançamentos.');
     if (!rows.length) throw new Error('Não encontramos lançamentos no OFX.');
-    return { rows, avisos: [] };
+    const ledger = content.match(/<LEDGERBAL>([\s\S]*?)(?:<\/LEDGERBAL>|<AVAILBAL>|<\/STMTRS>|<\/CCSTMTRS>)/i)?.[1];
+    const amount = ledger?.match(/<BALAMT>([^<\r\n]+)/i)?.[1];
+    const stamp = ledger?.match(/<DTASOF>([^<\r\n]+)/i)?.[1];
+    return { rows, saldos: ledger ? [{ data: date(stamp), descricao: 'Saldo informado no OFX', valor: money(amount) }] : [],
+        avisos: ledger ? ['O saldo informado no OFX é referência da conta e não gera receita ou despesa.'] : [] };
 }
 
 async function pdf(buffer, category) {

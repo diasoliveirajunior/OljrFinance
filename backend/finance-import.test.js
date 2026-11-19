@@ -32,7 +32,7 @@ test('CSV suporta aspas, vírgula decimal, linhas incompletas e IDs estáveis', 
     const result = await preview(payload, category);
     assert.equal(result.rows[0].descricao, 'Exemplo; um');
     assert.equal(result.rows[0].tipo, 'despesa');
-    assert.equal(result.rows[1].tipo, ''); // positivo sem tipo precisa de revisão
+    assert.equal(result.rows[1].tipo, 'receita'); // coluna de valores assinados reconhecida pelo negativo
     assert.notEqual(result.rows[1].sourceId, result.rows[2].sourceId);
     assert.deepEqual((await preview(payload, category)).rows, result.rows);
     assert.equal(result.rows[3].data, '');
@@ -83,6 +83,68 @@ test('limites e extensões são verificados antes da leitura', async () => {
     await assert.rejects(preview(file('exemplo.xls', 'fictício'), category), /xlsx/);
     await assert.rejects(preview(file('exemplo.csv', Buffer.alloc(3 * 1024 * 1024 + 1)), category), /3 MB/);
     await assert.rejects(preview(file('exemplo.pdf', 'não é PDF'), category), /PDF inválido/);
+});
+
+test('saldo anterior e final não viram lançamentos; entradas e saídas são reconhecidas', async () => {
+    const payload = file('ficticio.csv', 'Data;Descrição;Entrada;Saída;Saldo\n18/11/2026;Saldo anterior;;;100,00\n18/11/2026;Recebimento fictício;20,00;;120,00\n18/11/2026;Compra fictícia;;5,00;115,00\n18/11/2026;Saldo final;;;115,00');
+    const result = await preview(payload, category);
+    assert.equal(result.rows.length, 2);
+    assert.deepEqual(result.rows.map(r => r.tipo), ['receita', 'despesa']);
+    assert.equal(result.saldos.length, 2);
+    assert.equal(result.conferencia.verificadas, 3);
+    assert.deepEqual(result.conferencia.linhas_divergentes, []);
+});
+
+test('saldos sequenciais resolvem valores positivos; divergências continuam visíveis', async () => {
+    const payload = file('ficticio.csv', 'Data;Descrição;Valor;Saldo\n18/11/2026;Saldo anterior;100,00;100,00\n18/11/2026;Compra fictícia;5,00;95,00\n18/11/2026;Outro fictício;10,00;200,00');
+    const result = await preview(payload, category);
+    assert.equal(result.rows[0].tipo, 'despesa');
+    assert.equal(result.rows[1].tipo, '');
+    assert.equal(result.conferencia.linhas_divergentes.length, 1);
+});
+
+test('duas colunas monetárias preenchidas e escolha de saldo como valor não são aceitas automaticamente', async () => {
+    const payload = file('ficticio.csv', 'Data;Descrição;Entrada;Saída;Saldo\n18/11/2026;Movimento fictício;10,00;5,00;100,00');
+    const result = await preview(payload, category);
+    assert.equal(result.rows[0].tipo, '');
+    assert.equal(result.rows[0].valor, '');
+    await assert.rejects(preview({ ...payload, colunas: { data: 0, descricao: 1, valor: 4, saldo: 4, entrada: -1, saida: -1 } }, category), /colunas diferentes/);
+});
+
+test('a convenção escolhida resolve cartões; positivo sozinho permanece para revisão', async () => {
+    const payload = file('ficticio.csv', 'Data;Descrição;Valor\n18/11/2026;Compra fictícia;10,00');
+    assert.equal((await preview(payload, category)).rows[0].tipo, '');
+    assert.equal((await preview({ ...payload, convencao: 'positivo_saida' }, category)).rows[0].tipo, 'despesa');
+    assert.equal((await preview({ ...payload, convencao: 'positivo_entrada' }, category)).rows[0].tipo, 'receita');
+});
+
+test('identificador de planilha já importada permanece compatível com a primeira versão', async () => {
+    const raw = { data: '18/11/2026', descricao: 'Fictício', valor: '-10,00', tipo: '', categoria: '' };
+    const expected = require('./finance-import').hash(JSON.stringify(raw)) + ':1';
+    const result = await preview(file('ficticio.csv', 'Data;Descrição;Valor\n18/11/2026;Fictício;-10,00'), category);
+    assert.equal(result.rows[0].sourceId, expected);
+});
+
+test('saldo de fechamento OFX fica separado das movimentações', async () => {
+    const content = '<OFX><BANKTRANLIST><STMTTRN><TRNTYPE>DEBIT\n<DTPOSTED>20261118\n<TRNAMT>-1.00\n<FITID>ficticio\n<MEMO>Exemplo\n</STMTTRN></BANKTRANLIST><LEDGERBAL><BALAMT>99.00\n<DTASOF>20261118\n</LEDGERBAL></STMTRS></OFX>';
+    const result = await preview(file('exemplo.ofx', content), category);
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.saldos[0].valor, 99);
+});
+test('extrato do mais recente para o mais antigo mantém direção e ordem visual corretas', async () => {
+    const result = await preview(file('ficticio.csv', 'Data;Descrição;Valor;Saldo\n19/11/2026;Compra fictícia;5,00;115,00\n18/11/2026;Entrada fictícia;20,00;120,00\n17/11/2026;Saldo anterior;100,00;100,00'), category);
+    assert.deepEqual(result.rows.map(r => r.tipo), ['despesa', 'receita']);
+    assert.equal(result.rows[0].descricao, 'Compra fictícia');
+    assert.deepEqual(result.conferencia.linhas_divergentes, []);
+});
+test('saldos do mesmo dia sem ordem definida não inventam direção', async () => {
+    const result = await preview(file('ficticio.csv', 'Data;Descrição;Valor;Saldo\n18/11/2026;Primeiro fictício;5,00;100,00\n18/11/2026;Segundo fictício;5,00;95,00'), category);
+    assert.deepEqual(result.rows.map(r => r.tipo), ['', '']);
+    assert.equal(result.conferencia.verificadas, 0);
+});
+test('títulos bancários com moeda reconhecem crédito e débito separados', async () => {
+    const result = await preview(file('ficticio.csv', 'Data;Histórico;Crédito (R$);Débito (R$);Saldo (R$)\n18/11/2026;Entrada fictícia;10,00;;100,00\n18/11/2026;Saída fictícia;;5,00;95,00'), category);
+    assert.deepEqual(result.rows.map(r => r.tipo), ['receita', 'despesa']);
 });
 
 module.exports = { pdfFixture };

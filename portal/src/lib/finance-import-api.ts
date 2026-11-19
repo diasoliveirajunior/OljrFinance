@@ -1,7 +1,7 @@
 import { apiFetch } from "./api"
 
 export type FormatoImportacao = "ofx" | "xlsx" | "csv" | "pdf"
-export type ColunasImportacao = Record<"data" | "descricao" | "valor" | "tipo" | "categoria", number>
+export type ColunasImportacao = Record<"data" | "descricao" | "valor" | "tipo" | "categoria" | "entrada" | "saida" | "saldo", number>
 export interface LinhaImportacao {
   sourceId: string
   fitid?: string | null
@@ -10,6 +10,8 @@ export interface LinhaImportacao {
   valor: string
   tipo: "receita" | "despesa" | ""
   categoria: string
+  identificado_por?: string
+  saldo_apos?: number | null
 }
 export interface PreviaImportacao {
   formato: FormatoImportacao
@@ -21,10 +23,15 @@ export interface PreviaImportacao {
   colunas?: string[]
   mapeamento?: ColunasImportacao
   amostra?: string[][]
+  saldos?: { data: string; descricao: string; valor: number | null }[]
+  conferencia?: { verificadas: number; linhas_divergentes: number[] }
+  drive?: { file_id: string; versao: string }
 }
 export interface ArquivoImportacao {
   nome: string
-  arquivo: string
+  arquivo?: string
+  drive_file_id?: string
+  convencao?: "auto" | "positivo_entrada" | "positivo_saida"
   aba?: number
   cabecalho?: number
   colunas?: ColunasImportacao
@@ -32,7 +39,7 @@ export interface ArquivoImportacao {
 export function lerExtrato(body: ArquivoImportacao) {
   return apiFetch<PreviaImportacao>("/api/finance/importacao/previa", { method: "POST", body: JSON.stringify(body) })
 }
-export function confirmarExtrato(body: { formato: FormatoImportacao; lancamentos: LinhaImportacao[]; conta_id: string | null; cartao_id: string | null }) {
+export function confirmarExtrato(body: { formato: FormatoImportacao; lancamentos: LinhaImportacao[]; conta_id: string | null; cartao_id: string | null; drive?: PreviaImportacao["drive"] }) {
   return apiFetch<{ importadas: number; duplicadas: number }>("/api/finance/importacao/confirmar", { method: "POST", body: JSON.stringify(body) })
 }
 export function valorImportacao(text: string): number {

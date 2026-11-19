@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Dialog } from "radix-ui"
-import { AlertCircle, CheckCircle2, FileInput, Loader2, Upload, X } from "lucide-react"
+import { AlertCircle, CheckCircle2, Cloud, FileInput, Loader2, Upload, X } from "lucide-react"
+import { GoogleDriveSource } from "./GoogleDriveSource"
 import { fmtBRL, type Cartao, type Conta } from "@/lib/finance-api"
 import { confirmarExtrato, erroLinha, lerExtrato, valorImportacao,
   type ArquivoImportacao, type ColunasImportacao, type LinhaImportacao, type PreviaImportacao } from "@/lib/finance-import-api"
@@ -11,6 +12,8 @@ type EditableRow = LinhaImportacao & { selected: boolean }
 const fields: { key: keyof ColunasImportacao; label: string }[] = [
   { key: "data", label: "Data" }, { key: "descricao", label: "Descrição" }, { key: "valor", label: "Valor" },
   { key: "tipo", label: "Tipo (opcional)" }, { key: "categoria", label: "Categoria (opcional)" },
+  { key: "entrada", label: "Entrada / crédito (opcional)" }, { key: "saida", label: "Saída / débito (opcional)" },
+  { key: "saldo", label: "Saldo após o movimento (opcional)" },
 ]
 export function ImportarExtratoModal(props: Props) {
   return props.aberto ? <ImportSession {...props} /> : null
@@ -18,12 +21,14 @@ export function ImportarExtratoModal(props: Props) {
 function ImportSession({ fechar, contas, cartoes }: Props) {
   const qc = useQueryClient()
   const [file, setFile] = useState<ArquivoImportacao | null>(null)
+  const [source, setSource] = useState<"computador" | "drive">(() => new URLSearchParams(window.location.search).has("drive") ? "drive" : "computador")
   const [preview, setPreview] = useState<PreviaImportacao | null>(null)
   const [rows, setRows] = useState<EditableRow[]>([])
   const [destino, setDestino] = useState(contas[0] ? `conta:${contas[0].id}` : cartoes[0] ? `cartao:${cartoes[0].id}` : "")
   const [aba, setAba] = useState(0)
   const [header, setHeader] = useState(1)
-  const [columns, setColumns] = useState<ColunasImportacao>({ data: -1, descricao: -1, valor: -1, tipo: -1, categoria: -1 })
+  const [columns, setColumns] = useState<ColunasImportacao>({ data: -1, descricao: -1, valor: -1, tipo: -1, categoria: -1, entrada: -1, saida: -1, saldo: -1 })
+  const [convention, setConvention] = useState<NonNullable<ArquivoImportacao["convencao"]>>("auto")
   const [reading, setReading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
@@ -42,6 +47,7 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
   }, { receita: 0, despesa: 0 })
   const targets = [...contas.map(c => ({ value: `conta:${c.id}`, label: `${c.nome} (conta)` })),
     ...cartoes.map(c => ({ value: `cartao:${c.id}`, label: `${c.nome} (cartão)` }))]
+  function resetFile() { request.current++; setPreview(null); setRows([]); setFile(null); setConfirmed(false); setSuccess(""); setError("") }
 
   async function readFile(payload: ArquivoImportacao, token: number) {
     try {
@@ -74,12 +80,14 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
     } catch (e) { if (token === request.current) { setError((e as Error).message); setReading(false) } }
   }
   function updateRow(index: number, patch: Partial<EditableRow>) {
-    setRows(current => current.map((row, i) => i === index ? { ...row, ...patch } : row)); setConfirmed(false)
+    setRows(current => current.map((row, i) => i === index ? { ...row, ...patch, identificado_por: patch.selected === undefined ? "Editado na prévia" : row.identificado_por } : row)); setConfirmed(false)
   }
-  function remap(next: { aba?: number; cabecalho?: number; colunas?: ColunasImportacao }) {
+  function remap(next: { aba?: number; cabecalho?: number; colunas?: ColunasImportacao; convencao?: ArquivoImportacao["convencao"] }) {
     if (!file) return
     setRows([]); setError(""); setReading(true); setConfirmed(false)
-    void readFile({ ...file, ...next }, ++request.current)
+    const payload = { ...file, convencao: convention, ...next }
+    setFile(payload)
+    void readFile(payload, ++request.current)
   }
   async function save() {
     if (!preview || !selected.length || invalid || !confirmed || saving || selected.length > 400) return
@@ -89,10 +97,12 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
     try {
       const result = await confirmarExtrato({ formato: preview.formato,
         lancamentos: selected.map(row => ({ ...row, valor: valorImportacao(row.valor).toFixed(2) })),
-        conta_id: kind === "conta" ? id : null, cartao_id: kind === "cartao" ? id : null })
+        conta_id: kind === "conta" ? id : null, cartao_id: kind === "cartao" ? id : null,
+        drive: preview.drive })
       setSuccess(`${result.importadas} lançamento(s) importado(s). ${result.duplicadas} repetido(s) ignorado(s).`)
       setRows(current => current.filter(row => !row.selected)); setConfirmed(false); setPage(0)
       await qc.invalidateQueries({ queryKey: ["finance"] })
+      if (preview.drive) await qc.invalidateQueries({ queryKey: ["finance-drive"] })
     } catch (e) { setError((e as Error).message) }
     finally { setSaving(false) }
   }
@@ -103,7 +113,11 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
         <Dialog.Title>Importar extrato</Dialog.Title>
         <button type="button" className="ff-icon-btn" aria-label="Fechar importação" onClick={fechar} disabled={busy}><X className="size-4" /></button>
       </div>
-      <Dialog.Description className="ff-import-help">Envie o arquivo, confira os lançamentos e importe apenas os selecionados.</Dialog.Description>
+      <Dialog.Description className="ff-import-help">Leia do computador ou do Google Drive, confira os lançamentos e confirme os selecionados.</Dialog.Description>
+      <div className="ff-filters" aria-label="Origem do extrato">
+        <button type="button" className={`ff-chip ${source === "computador" ? "is-active" : ""}`} disabled={busy} onClick={() => { resetFile(); setSource("computador") }}><Upload className="size-4" /> Do computador</button>
+        <button type="button" className={`ff-chip ${source === "drive" ? "is-active" : ""}`} disabled={busy} onClick={() => { resetFile(); setSource("drive") }}><Cloud className="size-4" /> Google Drive</button>
+      </div>
       <div className="ff-import-controls">
         <label className="ff-field">Conta ou cartão de destino
           <select value={destino} disabled={busy} onChange={e => { setDestino(e.target.value); setConfirmed(false) }}>
@@ -111,14 +125,22 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
             {targets.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </label>
-        <label className="ff-import-upload">
+        {source === "computador" && <label className="ff-import-upload">
           <Upload className="size-5" />
           <span>{file ? file.nome : "Escolher arquivo"}<small>OFX, Excel (.xlsx), CSV ou PDF · até 3 MB</small></span>
           <input type="file" accept=".ofx,.xlsx,.csv,.pdf" aria-label="Arquivo de extrato" disabled={busy} onChange={e => { void chooseFile(e.target.files?.[0]); e.target.value = "" }} />
-        </label>
+        </label>}
       </div>
+      {source === "drive" && <details className="ff-import-mapping-panel" open={file ? undefined : true}>
+        <summary>Google Drive: conexão, pasta e arquivos</summary>
+        <GoogleDriveSource destino={destino} ocupado={busy} limpar={resetFile} escolher={chosen => {
+        resetFile(); setReading(true)
+        const payload = { nome: chosen.nome, drive_file_id: chosen.id }
+        setFile(payload); void readFile(payload, ++request.current)
+      }} /></details>}
+      {source === "drive" && file && <p className="ff-import-help">Arquivo em revisão: <strong>{file.nome}</strong></p>}
       {!targets.length && <p className="ff-alert ff-alert--danger">Cadastre uma conta ou um cartão antes de importar.</p>}
-      <p className="ff-import-help">PDF precisa ter texto selecionável, datas com ano e um valor por linha. PDFs escaneados não são lidos nesta versão.</p>
+      {(!preview || preview.formato === "pdf") && <p className="ff-import-help">PDF precisa ter texto selecionável, datas com ano e um valor por linha. PDFs escaneados não são lidos nesta versão.</p>}
       {preview?.colunas && <details className="ff-import-mapping-panel" open={rows.length ? undefined : true}>
         <summary>Colunas da planilha: conferir ou ajustar</summary>
         <fieldset className="ff-import-mapping" disabled={busy}>
@@ -129,11 +151,21 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
         {fields.map(field => <label className="ff-field" key={field.key}>{field.label}<select value={columns[field.key]} onChange={e => { setColumns(current => ({ ...current, [field.key]: Number(e.target.value) })); setRows([]); setConfirmed(false) }}>
           <option value={-1}>Escolha a coluna</option>{preview.colunas?.map((name, i) => <option key={i} value={i}>{i + 1}. {name}</option>)}
         </select></label>)}
+        <label className="ff-field">Sinais dos valores<select value={convention} onChange={e => { setConvention(e.target.value as typeof convention); setRows([]); setConfirmed(false) }}>
+          <option value="auto">Reconhecer automaticamente</option><option value="positivo_entrada">Positivo é entrada</option><option value="positivo_saida">Positivo é saída (ex.: cartão)</option>
+        </select></label>
         <button type="button" className="ff-btn ff-btn--ghost" onClick={() => remap({ aba, cabecalho: header - 1, colunas: columns })}>Atualizar prévia</button>
         {preview.amostra?.length ? <p className="ff-import-sample">Exemplo da primeira linha: {preview.amostra[0].join(" / ")}</p> : null}
       </fieldset></details>}
       {reading && <p role="status" className="ff-import-status"><Loader2 className="size-4 animate-spin" /> Lendo arquivo…</p>}
       {preview?.avisos.map(warning => <p className="ff-import-warning" key={warning}><AlertCircle className="size-4" />{warning}</p>)}
+      {!!preview?.saldos?.length && <details className="ff-import-mapping-panel"><summary>Saldos do arquivo: referência, sem gerar entradas ou saídas</summary>
+        <ul>{preview.saldos.map((saldo, i) => <li key={i} className="ff-import-help">{saldo.data || "Sem data"} — {saldo.descricao}: {saldo.valor === null ? "Valor não reconhecido" : fmtBRL(saldo.valor)}</li>)}</ul>
+      </details>}
+      {!!preview?.conferencia?.verificadas && <p className="ff-import-help">Conferência do arquivo original: {preview.conferencia.verificadas} sequência(s) de saldo verificada(s).
+        {preview.conferencia.linhas_divergentes.length ? ` Confira as linhas ${preview.conferencia.linhas_divergentes.join(", ")}: os saldos divergem dos movimentos.` : " Os saldos conferem com os movimentos reconhecidos."}
+        {" "}Confira novamente se editar ou desmarcar linhas.
+      </p>}
       {rows.length > 0 && <>
         <div className="ff-import-summary">
           <span><strong>{selected.length}</strong> de {rows.length} selecionados</span>
@@ -153,7 +185,7 @@ function ImportSession({ fechar, contas, cartoes }: Props) {
             return <tr key={`${row.sourceId}:${i}`} className={issue ? "ff-import-incomplete" : ""}>
               <td><input type="checkbox" aria-label={`Importar linha ${i + 1}`} checked={row.selected} disabled={saving} onChange={e => updateRow(i, { selected: e.target.checked })} /></td>
               <td><input type="date" aria-label={`Data linha ${i + 1}`} value={row.data} disabled={saving} onChange={e => updateRow(i, { data: e.target.value })} /></td>
-              <td><input aria-label={`Descrição linha ${i + 1}`} value={row.descricao} maxLength={200} disabled={saving} onChange={e => updateRow(i, { descricao: e.target.value })} />{issue && <small>{issue}</small>}</td>
+              <td><input aria-label={`Descrição linha ${i + 1}`} value={row.descricao} maxLength={200} disabled={saving} onChange={e => updateRow(i, { descricao: e.target.value })} />{issue ? <small>{issue}</small> : row.identificado_por && <span className="ff-import-explanation">{row.identificado_por}</span>}</td>
               <td><select aria-label={`Tipo linha ${i + 1}`} value={row.tipo} disabled={saving} onChange={e => updateRow(i, { tipo: e.target.value as LinhaImportacao["tipo"] })}><option value="">Escolha</option><option value="receita">Entrada</option><option value="despesa">Saída</option></select></td>
               <td><input inputMode="decimal" aria-label={`Valor linha ${i + 1}`} value={row.valor} disabled={saving} onChange={e => updateRow(i, { valor: e.target.value })} /></td>
               <td><input aria-label={`Categoria linha ${i + 1}`} value={row.categoria} maxLength={60} disabled={saving} onChange={e => updateRow(i, { categoria: e.target.value })} /></td>

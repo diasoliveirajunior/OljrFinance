@@ -6,6 +6,7 @@ const imports = require('./finance-import.controller');
 const { hash, validateRows, transactionSignature: signature } = require('./finance-import');
 const INTERVAL = 5 * 60 * 1000;
 const LEASE = 10 * 60 * 1000;
+const READER_VERSION = 2;
 const authorized = user => Boolean(user?.ativo && user.paineis?.includes('FINANCE') &&
     !(user.papel === 'convidado' && user.expira_em && Date.now() > new Date(user.expira_em).getTime()));
 
@@ -56,9 +57,10 @@ function createEngine({ db, drive = driveApi, importer = imports, identity = uid
             for (const file of response.data.files || []) {
                 const job = ref.collection('sync_arquivos').doc(hash(JSON.stringify([state.pasta_id, state.conta_id, state.cartao_id, file.id])));
                 const previous = await job.get();
-                if (previous.exists && previous.data().versao === file.modifiedTime && previous.data().revision === state.revision && previous.data().estado !== 'erro') continue;
+                if (previous.exists && previous.data().versao === file.modifiedTime && previous.data().revision === state.revision && previous.data().estado !== 'erro' &&
+                    !(previous.data().estado === 'pendente' && previous.data().leitor !== READER_VERSION)) continue;
                 const outcome = { file_id: file.id, nome: String(file.name || '').slice(0, 200), versao: file.modifiedTime || null,
-                    revision: state.revision, estado: 'concluido', importadas: 0, duplicadas: 0, pendentes: 0, motivo: '' };
+                    revision: state.revision, leitor: READER_VERSION, estado: 'concluido', importadas: 0, duplicadas: 0, pendentes: 0, motivo: '' };
                 try {
                     if (!drive.internals.supported(file)) {
                         outcome.estado = 'ignorado'; outcome.motivo = 'Use OFX, XLSX, CSV ou PDF de até 3 MB, diretamente nesta pasta.';
@@ -81,8 +83,9 @@ function createEngine({ db, drive = driveApi, importer = imports, identity = uid
                             classified.reason = 'Este arquivo alterou ou removeu movimentos já lançados. Confira as diferenças; os lançamentos anteriores foram preservados.';
                         }
                         outcome.pendentes = classified.pending.length;
+                        if (!outcome.pendentes && (preview.automaticIssues || preview.conferencia?.linhas_divergentes?.length)) outcome.pendentes = 1;
                         outcome.motivo = classified.reason;
-                        if (!preview.rows.length) { outcome.pendentes = 1; outcome.motivo = 'Não encontramos movimentos com estrutura reconhecida.'; }
+                        if (!preview.rows.length && !preview.saldos?.length) { outcome.pendentes = 1; outcome.motivo = 'Não encontramos movimentos com estrutura reconhecida.'; }
                         // Coincidências com outra origem exigem análise, sem apagar nem fundir movimentos legítimos.
                         const dates = [...new Set(classified.valid.map(r => r.data))];
                         const existing = [];

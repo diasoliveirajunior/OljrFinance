@@ -179,3 +179,22 @@ test('saldo reconhecido não esconde linhas de movimentos que o PDF não consegu
     const result = await s.engine.run(email, uid);
     assert.equal(result.pendentes, 1); assert.equal(result.arquivos[0].estado, 'pendente'); assert.equal(count(s), 0);
 });
+
+test('releitura de versão antiga salva posições sem duplicar lançamentos nem mexer no saldo inicial', async () => {
+ const s=setup();s.files.splice(1);
+ s.importer.readPreview=async()=>({formato:'ofx',rows:[{...row,sourceId:'tx',fitid:'tx'}],saldos:[{data:'2026-11-18',descricao:'Saldo anterior',valor:40},{data:'2026-11-19',descricao:'SALDO',valor:27.5}]});
+ s.docs.get('finance_contas/conta-ficticia').saldo_inicial=99;
+ await s.engine.run(email,uid);assert.equal(count(s),1);
+ const job=[...s.docs.keys()].find(k=>k.includes('/sync_arquivos/'));s.docs.get(job).leitor=2;
+ await s.engine.run(email,uid);assert.equal(count(s),1);assert.equal(s.downloads(),2);
+ const snapshot=[...s.docs.entries()].find(([k])=>k.startsWith('finance_extratos/'))[1];
+ assert.equal(snapshot.saldos.length,2);assert.equal(snapshot.saldos[1].centavos,2750);assert.equal(snapshot.email,email);
+ assert.equal(snapshot.leitura_completa,true);assert.equal(s.docs.get('finance_contas/conta-ficticia').saldo_inicial,99);
+});
+
+test('arquivo que muda antes de registrar a posição não produz saldo confirmado', async () => {
+ const s=setup();s.files.splice(1);s.importer.readPreview=async()=>({formato:'ofx',rows:[],saldos:[{data:'2026-11-19',descricao:'SALDO',valor:27}]});
+ s.drive.validateSource=async()=>{throw new Error('versão mudou')};await s.engine.run(email,uid);
+ const snapshot=[...s.docs.entries()].find(([k])=>k.startsWith('finance_extratos/'))[1];
+ assert.equal(snapshot.estado,'erro');assert.equal(snapshot.saldos.length,0);assert.equal(snapshot.leitura_completa,false);
+});

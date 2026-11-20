@@ -51,15 +51,15 @@ export function HomeFinance({
 
   const atalhos: AtalhoCard[] = []
   atalhos.push({
-    chave: "patrimonio", titulo: "Patrimônio total",
+    chave: "patrimonio", titulo: "Patrimônio de referência",
     subtitulo: pat ? `em ${contas.length} contas · ${invs.length} investimentos` : "carregando",
-    valor: pat ? fmtBRL(pat.patrimonio_total) : "—",
+    valor: pat?.patrimonio_total != null ? fmtBRL(pat.patrimonio_total) : "A conferir",
     icon: Wallet, cor: "#10b981", acao: () => onIrPara("geral"),
   })
   atalhos.push({
-    chave: "saldo", titulo: "Saldo nas contas",
-    subtitulo: `${contas.length} ${contas.length === 1 ? "conta" : "contas"}`,
-    valor: pat ? fmtBRL(pat.contas) : "—",
+    chave: "saldo", titulo: "Saldos de referência",
+    subtitulo: "Últimos saldos disponíveis; confira as datas na visão geral",
+    valor: pat?.contas != null ? fmtBRL(pat.contas) : "A conferir",
     icon: Landmark, cor: "#3b82f6", acao: () => onIrPara("geral"),
   })
   if (mostrarCartoes) atalhos.push({
@@ -113,6 +113,7 @@ export function HomeFinance({
         ))}
       </div>
 
+      {!!pat?.contas_a_conferir && <p className="ff-balance-notice" role="status">Há histórico com diferenças ou sem conferência. Abra a visão geral para ver o saldo informado, a data e os cálculos de cada conta.</p>}
       <div className="ff-home-actions">
         <button className="ff-btn ff-btn--primary" onClick={() => onIrPara("geral")}>
           <LayoutDashboard className="size-4" /> Abrir visão geral completa

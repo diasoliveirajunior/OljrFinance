@@ -178,3 +178,8 @@ test('PDF com saldo normal ou espaçado não gera pendência de tipo nem bloquei
     const balanceOnly = await preview(file('ficticio.pdf', pdfFixture('19/11/2026 S A L D O 27,00')), category);
     assert.equal(balanceOnly.rows.length, 0); assert.equal(balanceOnly.saldos.length, 1); assert.equal(balanceOnly.automaticIssues, false);
 });
+
+test('saldo devedor em coluna D/C preserva sinal, sem criar despesa fictícia', async()=>{
+ const result=await preview(file('ficticio.csv','Data;Descrição;Valor;D/C\n18/11/2026;Saldo anterior;27,00;D\n19/11/2026;Recebimento fictício;10,00;C\n19/11/2026;SALDO;17,00;D'),category);
+ assert.deepEqual(result.saldos.map(s=>s.valor),[-27,-17]);assert.equal(result.rows.length,1);assert.equal(result.rows[0].tipo,'receita');
+});

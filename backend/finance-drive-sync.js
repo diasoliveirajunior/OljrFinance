@@ -6,7 +6,7 @@ const imports = require('./finance-import.controller');
 const { hash, validateRows, transactionSignature: signature } = require('./finance-import');
 const INTERVAL = 5 * 60 * 1000;
 const LEASE = 10 * 60 * 1000;
-const READER_VERSION = 2;
+const READER_VERSION = 3;
 const authorized = user => Boolean(user?.ativo && user.paineis?.includes('FINANCE') &&
     !(user.papel === 'convidado' && user.expira_em && Date.now() > new Date(user.expira_em).getTime()));
 
@@ -58,9 +58,10 @@ function createEngine({ db, drive = driveApi, importer = imports, identity = uid
                 const job = ref.collection('sync_arquivos').doc(hash(JSON.stringify([state.pasta_id, state.conta_id, state.cartao_id, file.id])));
                 const previous = await job.get();
                 if (previous.exists && previous.data().versao === file.modifiedTime && previous.data().revision === state.revision && previous.data().estado !== 'erro' &&
-                    !(previous.data().estado === 'pendente' && previous.data().leitor !== READER_VERSION)) continue;
+                    !(['pendente','concluido'].includes(previous.data().estado) && previous.data().leitor !== READER_VERSION)) continue;
                 const outcome = { file_id: file.id, nome: String(file.name || '').slice(0, 200), versao: file.modifiedTime || null,
                     revision: state.revision, leitor: READER_VERSION, estado: 'concluido', importadas: 0, duplicadas: 0, pendentes: 0, motivo: '' };
+                let bankRecord = null;
                 try {
                     if (!drive.internals.supported(file)) {
                         outcome.estado = 'ignorado'; outcome.motivo = 'Use OFX, XLSX, CSV ou PDF de até 3 MB, diretamente nesta pasta.';
@@ -68,6 +69,7 @@ function createEngine({ db, drive = driveApi, importer = imports, identity = uid
                         const source = await drive.download(email, uid, file.id);
                         const preview = await importer.readPreview({ ...source, automatico: true });
                         const classified = classify(preview);
+                        bankRecord = require('./finance-balances').statement(preview);
                         // Atualizações podem acrescentar movimentos, mas não podem duplicar correções ou exclusões.
                         const oldFile = await db.collection('finance_lancamentos').where('email', '==', email).where('drive_file_id', '==', file.id).get();
                         const currentRows = new Map(preview.rows.map(r => [r.sourceId, r]));
@@ -119,7 +121,23 @@ function createEngine({ db, drive = driveApi, importer = imports, identity = uid
                 } catch {
                     outcome.estado = 'erro'; outcome.motivo = 'Não foi possível concluir a leitura. Confira o formato e a conexão. A próxima sincronização tentará novamente.';
                 }
-                await db.runTransaction(async tx => { await guard(tx); tx.set(job, { ...outcome, atualizado_em: now() }); });
+                if (bankRecord) {
+                    try { await drive.validateSource(email, uid, { file_id: file.id, versao: file.modifiedTime }, file.name.split('.').pop().toLowerCase()); }
+                    catch { bankRecord = null; outcome.estado = 'erro'; outcome.motivo = 'O arquivo ou a conexão mudou durante a conferência. A leitura será tentada novamente.'; }
+                }
+                await db.runTransaction(async tx => {
+                    await guard(tx);
+                    if (state.conta_id) {
+                        const target = await tx.get(db.collection('finance_contas').doc(state.conta_id));
+                        if (!target.exists || target.data().email !== email) throw new Error('Destino alterado');
+                    }
+                    tx.set(job, { ...outcome, atualizado_em: now() });
+                    if (state.conta_id) tx.set(db.collection('finance_extratos').doc(hash(JSON.stringify([email, state.conta_id, file.id]))), {
+                        email, uid, conta_id: state.conta_id, cartao_id: null, file_id: file.id, versao: file.modifiedTime || null,
+                        ...bankRecord, estado: outcome.estado, leitura_completa: Boolean(bankRecord?.leitura_completa && outcome.estado === 'concluido'),
+                        ...(bankRecord ? {} : {saldos:[],movimentos:[],moeda:'BRL'}), atualizado_em: now(),
+                    });
+                });
                 result.importadas += outcome.importadas; result.duplicadas += outcome.duplicadas; result.pendentes += outcome.pendentes;
                 result.arquivos.push(outcome);
             }

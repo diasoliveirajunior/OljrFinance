@@ -24,49 +24,18 @@ function num(v) {
     return Number.isFinite(n) ? n : 0;
 }
 
-async function calcularSaldo(email, contaId, saldoInicial) {
-    const snap = await admin.firestore().collection('finance_lancamentos')
-        .where('email', '==', email)
-        .where('conta_id', '==', contaId)
-        .get();
-    let total = Number(saldoInicial) || 0;
-    snap.forEach(d => {
-        const l = d.data();
-        const v = Number(l.valor) || 0;
-        total += l.tipo === 'receita' ? v : -v;
-    });
-    return Math.round(total * 100) / 100;
-}
-
 exports.listar = async (req, res) => {
     try {
-        const email = req.user.email;
-        const snap = await admin.firestore().collection('finance_contas')
-            .where('email', '==', email).get();
-        const contas = [];
-        for (const d of snap.docs) {
-            const data = d.data();
-            const saldo = await calcularSaldo(email, d.id, data.saldo_inicial);
-            // 'nome' legado ainda existe em registros antigos; a partir de 18/11
-            // a identificacao e 'banco' apenas, preenchido no cadastro ou herdado do nome antigo.
-            const label = data.banco || data.nome || 'Conta';
-            contas.push({
-                id: d.id,
-                nome: label,
-                banco: label,
-                tipo: data.tipo,
-                cor: data.cor || '#64748b',
-                saldo_inicial: Number(data.saldo_inicial) || 0,
-                saldo_atual: saldo,
-                observacao: data.observacao || null,
-                criado_em: data.criado_em || null
-            });
-        }
-        contas.sort((a, b) => a.nome.localeCompare(b.nome));
+        const records = await require('./finance-balances').load(admin.firestore(), req.user.email);
+        const contas = records.map(({id, data, balance}) => ({
+            id, nome: data.banco || data.nome || 'Conta', banco: data.banco || data.nome || 'Conta',
+            tipo: data.tipo, cor: data.cor || '#64748b', saldo_inicial: Number(data.saldo_inicial) || 0,
+            observacao: data.observacao || null, criado_em: data.criado_em || null, ...balance,
+        }));
+        contas.sort((a,b) => a.nome.localeCompare(b.nome));
         res.json({ contas });
-    } catch (e) {
-        console.error('contas.listar:', e);
-        res.status(500).json({ error: 'Erro ao carregar contas.' });
+    } catch {
+        res.status(500).json({ error: 'Não foi possível consultar os saldos e a conciliação das contas.' });
     }
 };
 

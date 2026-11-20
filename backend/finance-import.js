@@ -139,7 +139,8 @@ function tablePreview(tables, options, category) {
         if (balanceLabel(raw.descricao) || balanceLabel(raw.tipo)) {
             // Um saldo é posição da conta. Um total é apenas resumo; nenhum vira movimentação.
             if (isBalance(raw.descricao) || isBalance(raw.tipo)) {
-                const value = balance ?? (hasValue ? money(raw.valor) : null);
+                let value = balance ?? (hasValue ? money(raw.valor) : null);
+                if (value !== null && type(raw.tipo)) value = type(raw.tipo) === 'despesa' ? -Math.abs(value) : Math.abs(value);
                 saldos.push({ data: date(raw.data), descricao: clean(raw.descricao), valor: value });
                 if (value !== null) {
                     const cents = Math.round(value * 100);
@@ -213,7 +214,8 @@ function ofx(content, category) {
     const ledger = content.match(/<LEDGERBAL>([\s\S]*?)(?:<\/LEDGERBAL>|<AVAILBAL>|<\/STMTRS>|<\/CCSTMTRS>)/i)?.[1];
     const amount = ledger?.match(/<BALAMT>([^<\r\n]+)/i)?.[1];
     const stamp = ledger?.match(/<DTASOF>([^<\r\n]+)/i)?.[1];
-    return { rows, saldos: ledger ? [{ data: date(stamp), descricao: 'Saldo informado no OFX', valor: money(amount) }] : [],
+    const currency = content.match(/<CURDEF>([^<\r\n]+)/i)?.[1]?.trim().toUpperCase() || 'BRL';
+    return { rows, moeda: currency, automaticIssues: currency !== 'BRL', saldos: ledger ? [{ data: date(stamp), descricao: 'Saldo informado no OFX', valor: money(amount) }] : [],
         avisos: ledger ? ['O saldo informado no OFX é referência da conta e não gera receita ou despesa.'] : [] };
 }
 

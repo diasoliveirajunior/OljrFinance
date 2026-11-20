@@ -142,39 +142,28 @@ exports.patrimonio = async (req, res) => {
     try {
         const email = req.user.email;
         const db = admin.firestore();
-        const [contasSnap, invSnap, cartoesSnap] = await Promise.all([
-            db.collection('finance_contas').where('email', '==', email).get(),
+        const [contasBal, invSnap, cartoesSnap] = await Promise.all([
+            require('./finance-balances').load(db, email),
             db.collection('finance_investimentos').where('email', '==', email).get(),
             db.collection('finance_cartoes').where('email', '==', email).get()
         ]);
-        // Saldo das contas
-        let totalContas = 0;
-        const contaIds = [];
-        contasSnap.forEach(d => {
-            contaIds.push({id: d.id, saldo_inicial: Number(d.data().saldo_inicial) || 0});
-        });
+        const totalContas = contasBal.some(c => c.balance.saldo_atual === null) ? null :
+            contasBal.reduce((s,c) => s + c.balance.saldo_atual, 0);
         const lancsSnap = await db.collection('finance_lancamentos').where('email', '==', email).get();
-        const porConta = {};
         const porCartao = {};
         let totalRecMes = 0, totalDespMes = 0;
-        const hoje = new Date();
-        const mesIni = hoje.toISOString().slice(0, 7) + '-01';
+        const hoje = require('./finance-balances').brDay(new Date());
+        const mesIni = hoje.slice(0, 7) + '-01';
         lancsSnap.forEach(d => {
             const l = d.data();
             const v = Number(l.valor) || 0;
-            if (l.conta_id) {
-                porConta[l.conta_id] = (porConta[l.conta_id] || 0) + (l.tipo === 'receita' ? v : -v);
-            }
             if (l.cartao_id && l.tipo === 'despesa') {
                 porCartao[l.cartao_id] = (porCartao[l.cartao_id] || 0) + v;
             }
-            if (l.data >= mesIni) {
+            if (l.data >= mesIni && l.data <= hoje) {
                 if (l.tipo === 'receita') totalRecMes += v;
                 else totalDespMes += v;
             }
-        });
-        contaIds.forEach(c => {
-            totalContas += c.saldo_inicial + (porConta[c.id] || 0);
         });
         // Investimentos
         let totalInvestido = 0, totalAtual = 0;
@@ -191,8 +180,10 @@ exports.patrimonio = async (req, res) => {
         });
 
         res.json({
-            patrimonio_total: Math.round((totalContas + totalAtual) * 100) / 100,
-            contas: Math.round(totalContas * 100) / 100,
+            patrimonio_total: totalContas === null ? null : Math.round((totalContas + totalAtual) * 100) / 100,
+            contas: totalContas === null ? null : Math.round(totalContas * 100) / 100,
+            contas_com_extrato: contasBal.filter(c => c.balance.data_saldo_informado).length,
+            contas_a_conferir: contasBal.filter(c => c.balance.conciliacao.status !== 'conferido').length,
             investimentos: Math.round(totalAtual * 100) / 100,
             investimentos_aplicado: Math.round(totalInvestido * 100) / 100,
             faturas_abertas: Math.round(totalFaturas * 100) / 100,

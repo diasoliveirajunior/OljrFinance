@@ -45,7 +45,18 @@ export interface Conta {
   tipo: TipoConta
   cor: string
   saldo_inicial: number
-  saldo_atual: number
+  saldo_atual: number | null
+  saldo_informado?: number | null
+  data_saldo_informado?: string | null
+  saldo_calculado?: number
+  saldo_calculado_cadastro?: number
+  saldo_calculado_na_data?: number | null
+  saldo_estimado?: number | null
+  movimentos_posteriores?: number
+  movimentos_futuros?: number
+  base_calculo?: { origem: "abertura_extrato" | "cadastro"; data: string | null; valor: number; entradas: number; saidas: number }
+  conciliacao?: { status: "conferido" | "divergente" | "incompleto" | "conflito" | "sem_extrato"; diferenca: number | null
+    extratos: number; avisos: { codigo: string; texto: string; desde?: string | null; ate?: string | null }[] }
   observacao?: string | null
 }
 
@@ -84,8 +95,10 @@ export interface Investimento {
 }
 
 export interface Patrimonio {
-  patrimonio_total: number
-  contas: number
+  patrimonio_total: number | null
+  contas: number | null
+  contas_com_extrato?: number
+  contas_a_conferir?: number
   investimentos: number
   investimentos_aplicado: number
   faturas_abertas: number

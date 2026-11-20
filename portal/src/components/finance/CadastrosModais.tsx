@@ -135,9 +135,10 @@ function ContaForm({ aberto, fechar, editar }: {
             { v: "carteira", label: "Carteira (dinheiro)" },
           ]} />
         <div className="ff-field">
-          <label>Saldo inicial</label>
+          <label>Saldo de abertura do histórico</label>
           <input inputMode="decimal" value={saldoInicial}
             onChange={(e) => setSaldoInicial(e.target.value)} placeholder="0,00" />
+          <p className="ff-import-help">Informe o valor que existia antes do primeiro lançamento do histórico. Quando houver abertura no extrato, ela será usada para conferir os cálculos.</p>
         </div>
         <SeletorCor valor={cor} setValor={setCor} />
         {erro && <div className="ff-alert ff-alert--danger">{erro}</div>}

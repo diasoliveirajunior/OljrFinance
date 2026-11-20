@@ -1,3 +1,4 @@
+import { AccountBalance } from "@/components/finance/AccountBalance"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
@@ -219,11 +220,11 @@ export function PainelFinance() {
         {view === "geral" && <>
         <section className="ff-patrimonio">
           <div className="ff-patrimonio-main">
-            <div className="ff-label">Patrimônio total</div>
+            <div className="ff-label">Patrimônio de referência</div>
             {patrimonioQ.isLoading || !pat ? (
               <div className="ff-skeleton" style={{ width: 260, height: 44 }} />
             ) : (
-              <div className="ff-patrimonio-value">{fmtBRL(pat.patrimonio_total)}</div>
+              <div className="ff-patrimonio-value">{pat.patrimonio_total === null ? "Saldo a conferir" : fmtBRL(pat.patrimonio_total)}</div>
             )}
             <div className="ff-patrimonio-hint">
               {contas.length} {contas.length === 1 ? "conta" : "contas"} ·{" "}
@@ -234,7 +235,7 @@ export function PainelFinance() {
           <div className="ff-patrimonio-stats">
             <div className="ff-stat">
               <div className="ff-label">Em contas</div>
-              <div className="ff-stat-value">{pat ? fmtBRL(pat.contas) : "—"}</div>
+              <div className="ff-stat-value">{pat?.contas != null ? fmtBRL(pat.contas) : "—"}</div>
             </div>
             <div className="ff-stat">
               <div className="ff-label">Investido</div>
@@ -251,6 +252,7 @@ export function PainelFinance() {
           </div>
         </section>
 
+        {!!pat?.contas_a_conferir && <p className="ff-balance-notice" role="status">Há contas com histórico ainda não conferido. Os totais usam o último saldo de extrato disponível de cada conta; sem extrato, usam o saldo calculado. Confira as datas e diferenças abaixo.</p>}
         <SecaoHead titulo="Contas" />
         {contasQ.isLoading ? <SkeletonCards /> : (
           <div className="ff-cards-row">
@@ -266,7 +268,7 @@ export function PainelFinance() {
                     <Pencil className="size-3.5" />
                   </button>
                 </div>
-                <div className="ff-card-saldo">{fmtBRL(c.saldo_atual)}</div>
+                <AccountBalance conta={c} />
               </article>
             ))}
             <button className="ff-bank-card ff-add-card" onClick={() => abrirConta(undefined)}>
